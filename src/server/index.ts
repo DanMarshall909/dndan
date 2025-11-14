@@ -12,9 +12,104 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Increase limit for image data
 
+// ============================================================================
+// CONFIGURATION VALIDATION
+// ============================================================================
+
+interface ServerConfig {
+  anthropicApiKey: string;
+  imageProvider: string;
+  openaiApiKey?: string;
+  replicateApiKey?: string;
+  stabilityApiKey?: string;
+}
+
+function validateConfiguration(): ServerConfig {
+  console.log('\n=== D&D AN Server Configuration ===\n');
+
+  // Required: Anthropic API Key
+  const anthropicApiKey = process.env.VITE_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+
+  if (!anthropicApiKey) {
+    console.error('❌ ERROR: Anthropic API key is REQUIRED but not found!');
+    console.error('\nTo fix this:');
+    console.error('1. Get an API key from: https://console.anthropic.com/');
+    console.error('2. Add to your environment:');
+    console.error('   export VITE_ANTHROPIC_API_KEY=your_key_here');
+    console.error('   OR');
+    console.error('   export ANTHROPIC_API_KEY=your_key_here');
+    console.error('\nThe AI Dungeon Master and NPC agents will NOT work without this!\n');
+    process.exit(1);
+  }
+
+  console.log('✅ Anthropic API Key: Found');
+
+  // Optional: Image Generation
+  const imageProvider = process.env.VITE_IMAGE_PROVIDER || 'placeholder';
+  console.log(`📸 Image Provider: ${imageProvider}`);
+
+  const config: ServerConfig = {
+    anthropicApiKey,
+    imageProvider,
+  };
+
+  if (imageProvider !== 'placeholder') {
+    switch (imageProvider) {
+      case 'openai':
+        config.openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
+        if (config.openaiApiKey) {
+          console.log('✅ OpenAI API Key: Found');
+        } else {
+          console.warn('⚠️  WARNING: OpenAI provider selected but API key not found!');
+          console.warn('   Set OPENAI_API_KEY or VITE_OPENAI_API_KEY');
+          console.warn('   Falling back to placeholder mode');
+          config.imageProvider = 'placeholder';
+        }
+        break;
+
+      case 'replicate':
+        config.replicateApiKey = process.env.REPLICATE_API_KEY || process.env.VITE_REPLICATE_API_KEY;
+        if (config.replicateApiKey) {
+          console.log('✅ Replicate API Key: Found');
+        } else {
+          console.warn('⚠️  WARNING: Replicate provider selected but API key not found!');
+          console.warn('   Set REPLICATE_API_KEY or VITE_REPLICATE_API_KEY');
+          console.warn('   Falling back to placeholder mode');
+          config.imageProvider = 'placeholder';
+        }
+        break;
+
+      case 'stability':
+        config.stabilityApiKey = process.env.STABILITY_API_KEY || process.env.VITE_STABILITY_API_KEY;
+        if (config.stabilityApiKey) {
+          console.log('✅ Stability AI API Key: Found');
+        } else {
+          console.warn('⚠️  WARNING: Stability provider selected but API key not found!');
+          console.warn('   Set STABILITY_API_KEY or VITE_STABILITY_API_KEY');
+          console.warn('   Falling back to placeholder mode');
+          config.imageProvider = 'placeholder';
+        }
+        break;
+
+      default:
+        console.warn(`⚠️  WARNING: Unknown image provider '${imageProvider}'`);
+        console.warn('   Valid options: placeholder, openai, replicate, stability');
+        console.warn('   Falling back to placeholder mode');
+        config.imageProvider = 'placeholder';
+    }
+  }
+
+  console.log('\n=== Configuration Complete ===\n');
+
+  return config;
+}
+
+// Validate configuration on startup
+const serverConfig = validateConfiguration();
+
 // Initialize Anthropic client
 const anthropic = new Anthropic({
-  apiKey: process.env.VITE_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+  apiKey: serverConfig.anthropicApiKey,
 });
 
 // Health check

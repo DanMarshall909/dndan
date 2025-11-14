@@ -81,7 +81,7 @@ Keep it dramatic and exciting. 1-2 sentences.`;
     attackerName: string,
     targetName: string,
     result: AttackResult,
-    isPlayerAttack: boolean
+    _isPlayerAttack: boolean
   ): Promise<DMResponse> {
     const outcome = result.hit
       ? result.critical

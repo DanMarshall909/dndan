@@ -95,6 +95,8 @@ export interface SceneDescriptor {
   visibleEntities: Entity[];
   lighting: LightingCondition;
   timeOfDay: string;
+  narrative?: string;  // Current narrative context from DM
+  recentEvents?: string[];  // Recent game events for context
 }
 
 export interface SceneCache {

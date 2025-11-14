@@ -2,7 +2,7 @@
  * Scene generation using Stable Diffusion
  */
 
-import { SceneDescriptor, Entity, Tile, Position } from '../map/types';
+import { SceneDescriptor, Entity, Position } from '../map/types';
 import { World } from '../map/world';
 
 export interface SDGenerationParams {
@@ -15,13 +15,93 @@ export interface SDGenerationParams {
   seed?: number;
 }
 
-export class SceneGenerator {
-  private apiUrl: string;
-  private apiKey: string;
+export type ImageProvider = 'openai' | 'replicate' | 'stability' | 'placeholder';
 
-  constructor(apiUrl: string, apiKey: string) {
-    this.apiUrl = apiUrl;
-    this.apiKey = apiKey;
+export interface ImageGenerationConfig {
+  provider: ImageProvider;
+  apiUrl: string;
+  apiKey: string;
+}
+
+export class SceneGenerator {
+  private config: ImageGenerationConfig;
+  private backendUrl: string;
+
+  constructor(config: ImageGenerationConfig, backendUrl: string = 'http://localhost:3001') {
+    this.config = config;
+    this.backendUrl = backendUrl;
+  }
+
+  /**
+   * Use Claude to enhance the image generation prompt based on game state and narrative
+   */
+  async enhancePromptWithAI(descriptor: SceneDescriptor, world: World): Promise<string> {
+    const { viewState, visibleEntities, lighting, timeOfDay, narrative, recentEvents } = descriptor;
+
+    // Build context for Claude
+    const tilesAhead = this.getTilesInView(viewState, world);
+    const envDesc = this.describeEnvironmentDetailed(tilesAhead, world);
+    const entityDesc = this.describeEntities(visibleEntities, viewState);
+
+    const contextParts: string[] = [
+      `You are creating a prompt for an AI image generator to create a pixel art scene for a D&D roguelike game.`,
+      ``,
+      `Game State:`,
+      `- View: Top-down dungeon view, player facing ${viewState.facing}`,
+      `- Lighting: ${lighting}`,
+      `- Time: ${timeOfDay}`,
+      `- Environment: ${envDesc}`,
+    ];
+
+    if (entityDesc) {
+      contextParts.push(`- Entities visible: ${entityDesc}`);
+    }
+
+    if (narrative) {
+      contextParts.push(``, `Current Narrative:`, narrative);
+    }
+
+    if (recentEvents && recentEvents.length > 0) {
+      contextParts.push(``, `Recent Events:`, ...recentEvents.map(e => `- ${e}`));
+    }
+
+    contextParts.push(
+      ``,
+      `Create a detailed prompt for generating a 160x100 pixel art image in the style of classic SSI Gold Box D&D games (Pool of Radiance, etc.).`,
+      `The prompt should describe the scene from a top-down perspective, include visual details about the dungeon layout, lighting, and any visible creatures or objects.`,
+      `Use retro gaming terminology and emphasize the pixel art aesthetic with EGA-style 256 colors.`,
+      ``,
+      `Return ONLY the image generation prompt, nothing else.`
+    );
+
+    try {
+      const response = await fetch(`${this.backendUrl}/api/claude`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: contextParts.join('\n') }],
+          system: 'You are an expert at creating prompts for AI image generation, specializing in retro pixel art game scenes.',
+          temperature: 0.7,
+          max_tokens: 400,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn('[SceneGen] Claude enhancement failed, using basic prompt');
+        return this.buildPrompt(descriptor, world);
+      }
+
+      const data = await response.json();
+      const enhancedPrompt = data.narrative || this.buildPrompt(descriptor, world);
+
+      console.log('[SceneGen] Enhanced prompt:', enhancedPrompt);
+      return enhancedPrompt;
+    } catch (error) {
+      console.error('[SceneGen] Prompt enhancement error:', error);
+      return this.buildPrompt(descriptor, world);
+    }
   }
 
   /**
@@ -63,7 +143,7 @@ export class SceneGenerator {
   /**
    * Get tiles in the player's field of view
    */
-  private getTilesInView(viewState: any, world: World): Position[] {
+  private getTilesInView(viewState: any, _world: World): Position[] {
     // Get tiles in a cone in front of the player
     const positions: Position[] = [];
     const { position, facing } = viewState;
@@ -105,9 +185,55 @@ export class SceneGenerator {
   }
 
   /**
+   * Describe the environment (walls, floors, doors) - detailed version for Claude
+   */
+  private describeEnvironmentDetailed(positions: Position[], world: World): string {
+    const tileCounts: Record<string, number> = {};
+
+    for (const pos of positions) {
+      const tile = world.getTile(pos);
+      if (tile) {
+        tileCounts[tile.type] = (tileCounts[tile.type] || 0) + 1;
+      }
+    }
+
+    const descriptions: string[] = [];
+
+    if (tileCounts['Floor']) {
+      descriptions.push('cobblestone floor');
+    }
+    if (tileCounts['Wall']) {
+      descriptions.push('stone walls');
+    }
+    if (tileCounts['Door']) {
+      descriptions.push('wooden doors');
+    }
+    if (tileCounts['LockedDoor']) {
+      descriptions.push('locked doors');
+    }
+    if (tileCounts['SecretDoor']) {
+      descriptions.push('hidden passages');
+    }
+    if (tileCounts['Water']) {
+      descriptions.push('pools of water');
+    }
+    if (tileCounts['Pit']) {
+      descriptions.push('dangerous pits');
+    }
+    if (tileCounts['Chest']) {
+      descriptions.push('treasure chests');
+    }
+    if (tileCounts['Stairs']) {
+      descriptions.push('stairs leading down');
+    }
+
+    return descriptions.length > 0 ? descriptions.join(', ') : 'stone dungeon corridor';
+  }
+
+  /**
    * Describe the environment (walls, floors, doors)
    */
-  private describeEnvironment(positions: Position[], lighting: string): string {
+  private describeEnvironment(_positions: Position[], _lighting: string): string {
     // Simplified - in a real implementation, check tile types
     return 'stone dungeon corridor, moss-covered walls, cobblestone floor';
   }
@@ -115,7 +241,7 @@ export class SceneGenerator {
   /**
    * Describe visible entities
    */
-  private describeEntities(entities: Entity[], viewState: any): string {
+  private describeEntities(entities: Entity[], _viewState: any): string {
     if (entities.length === 0) return '';
 
     const descriptions: string[] = [];
@@ -140,7 +266,7 @@ export class SceneGenerator {
   /**
    * Describe lighting conditions
    */
-  private describeLighting(lighting: string, timeOfDay: string): string {
+  private describeLighting(lighting: string, _timeOfDay: string): string {
     const conditions: string[] = [];
 
     switch (lighting) {
@@ -177,40 +303,49 @@ export class SceneGenerator {
   }
 
   /**
-   * Generate scene image via Stable Diffusion API
+   * Generate scene image using configured AI provider
    */
-  async generateScene(descriptor: SceneDescriptor, world: World): Promise<string> {
-    const prompt = this.buildPrompt(descriptor, world);
+  async generateScene(descriptor: SceneDescriptor, world: World, useAIEnhancement: boolean = true): Promise<string> {
+    // Return placeholder if that's the configured provider
+    if (this.config.provider === 'placeholder') {
+      return this.generatePlaceholder(descriptor);
+    }
+
+    // Get the prompt (enhanced or basic)
+    const prompt = useAIEnhancement
+      ? await this.enhancePromptWithAI(descriptor, world)
+      : this.buildPrompt(descriptor, world);
+
     const negativePrompt = this.buildNegativePrompt();
 
-    const params: SDGenerationParams = {
-      prompt,
-      negativePrompt,
-      width: 160,
-      height: 100,
-      steps: 25,
-      cfgScale: 7.5,
-    };
-
-    console.log('[SceneGen] Generating scene:', prompt);
+    console.log('[SceneGen] Generating scene with provider:', this.config.provider);
+    console.log('[SceneGen] Prompt:', prompt);
 
     try {
-      const response = await fetch(`${this.apiUrl}/generate`, {
+      // Send to backend which will route to appropriate provider
+      const response = await fetch(`${this.backendUrl}/api/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify(params),
+        body: JSON.stringify({
+          provider: this.config.provider,
+          prompt,
+          negativePrompt,
+          width: 160,
+          height: 100,
+          steps: 25,
+          cfgScale: 7.5,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`SD API error: ${response.statusText}`);
+        throw new Error(`Image generation API error: ${response.statusText}`);
       }
 
       const data = await response.json();
 
-      // Assume API returns base64 encoded image
+      // Return base64 encoded image
       return data.image || data.images?.[0];
     } catch (error) {
       console.error('[SceneGen] Generation failed:', error);
@@ -221,7 +356,7 @@ export class SceneGenerator {
   /**
    * Generate a placeholder image (for testing without SD API)
    */
-  generatePlaceholder(descriptor: SceneDescriptor): string {
+  generatePlaceholder(_descriptor: SceneDescriptor): string {
     // Return a simple placeholder as base64 PNG
     // In production, this would be a proper placeholder image
     return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAABkCAYAAAAdySNgAAAAD0lEQVR42u3BAQ0AAADCoPdPbQ8HFAAAAPwYPwAE1QBCAAAAAElFTkSuQmCC';

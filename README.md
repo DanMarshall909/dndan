@@ -29,7 +29,9 @@ D&D AN combines classic AD&D 1st/2nd Edition rules with modern AI technology to 
 
 ### AI Integration
 - **Claude (DM)**: Story generation, combat narration, NPC dialogue, quest creation
-- **Stable Diffusion**: Pixel art scene generation with consistent retro style
+- **Claude (Scene Prompts)**: Enhances image prompts by combining game state, map layout, and narrative context
+- **Multi-Provider Image Generation**: Support for OpenAI DALL-E, Replicate, and Stability AI
+- **Narrative-Driven Visuals**: Generated images reflect the current story, recent events, and DM narration
 - **Caching Strategy**: Reduces API costs and ensures instant response for explored areas
 
 ## Game Features
@@ -100,8 +102,11 @@ dndan/
 
 ### Prerequisites
 - Node.js 20+
-- Anthropic API key (for Claude)
-- Stable Diffusion API access (e.g., Stability AI, local installation, or Replicate)
+- Anthropic API key (for Claude DM - **required**)
+- Image generation API key (optional - defaults to placeholder mode)
+  - OpenAI API key (for DALL-E 3)
+  - Replicate API key (for pixel art models)
+  - Stability AI API key (for Stable Diffusion)
 
 ### Setup
 
@@ -111,12 +116,29 @@ npm install
 ```
 
 2. **Configure environment**:
-Create `.env` file with your API keys:
+Copy `.env.example` to `.env` and configure your API keys:
+```bash
+cp .env.example .env
 ```
-ANTHROPIC_API_KEY=your_claude_api_key
-SD_API_KEY=your_stable_diffusion_key
-SD_API_URL=https://api.stability.ai/v1/generation
+
+Edit `.env` with your credentials:
+```bash
+# Required: Claude for AI Dungeon Master
+VITE_ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: Choose image generation provider
+VITE_IMAGE_PROVIDER=placeholder  # Options: placeholder, openai, replicate, stability
+
+# Add corresponding API key based on provider:
+OPENAI_API_KEY=sk-...              # If using OpenAI DALL-E
+REPLICATE_API_KEY=r8_...           # If using Replicate
+STABILITY_API_KEY=sk-...           # If using Stability AI
 ```
+
+**Provider Recommendations:**
+- **Development**: Use `placeholder` (free, instant, no API key needed)
+- **Production**: Use `openai` (easiest, great quality) or `replicate` (best pixel art)
 
 3. **Run development server**:
 ```bash
@@ -199,30 +221,49 @@ Roll 1d20 ≥ save value to succeed.
 3. Fill available spell slots
 4. Cast spells (one-time use until next rest)
 
-## Stable Diffusion Prompts
+## AI-Enhanced Image Generation
 
-The game generates prompts for consistent pixel art style:
+The game uses a two-stage AI process for generating visually coherent scenes:
 
-### Template
+### Stage 1: Claude Prompt Enhancement
+Claude analyzes the current game state and creates detailed image generation prompts:
+- **Game State**: Player position, facing direction, lighting, time of day
+- **Map Layout**: Visible tiles, doors, walls, treasures, traps
+- **Narrative Context**: Current DM narration and recent story events
+- **Visible Entities**: Monsters, NPCs, items in the player's field of view
+- **Style Requirements**: Pixel art, retro aesthetic, specific color palette
+
+### Stage 2: Image Generation
+The enhanced prompt is sent to your chosen provider:
+- **OpenAI DALL-E 3**: Modern, high-quality images with pixel art styling
+- **Replicate**: Specialized pixel art models for authentic retro look
+- **Stability AI**: Stable Diffusion XL with fine control over generation
+
+### Example Workflow
 ```
-160x100 pixel art, 256-color palette, retro RPG style,
-[perspective: top-down/isometric], [location description],
-[entities present], [lighting/atmosphere],
-inspired by Pool of Radiance and SSI Gold Box games
+Game State:
+- Position: (15, 23), Facing: North
+- Lighting: Dim
+- Narrative: "Three goblins emerge from the shadows, weapons drawn!"
+- Visible: Stone walls, wooden door, 3 goblin entities
+
+Claude Enhancement:
+"Create a top-down dungeon view in the style of classic SSI Gold Box D&D games.
+The scene shows a dimly lit stone corridor with moss-covered walls and a worn
+cobblestone floor. Three goblin warriors with rusty short swords advance from
+the northern passage, their eyes glinting in the flickering torchlight. A wooden
+door is visible to the east. Use 160x100 pixel art resolution with a 256-color
+EGA palette, crisp pixels, no anti-aliasing, retro RPG aesthetic."
+
+Generated Image:
+[Pixel art scene matching the description and narrative]
 ```
 
-### Example Prompts
-```
-"160x100 pixel art, 256-color EGA palette, top-down view,
-stone dungeon corridor, torch sconces on north wall,
-wooden door to the east, goblin warrior 10 feet ahead
-holding rusty sword, dim torchlight, retro RPG style"
-
-"160x100 pixel art, 256-color palette, isometric view,
-tavern interior, wooden tables and chairs, fireplace on west wall,
-bearded dwarf bartender behind counter, cozy warm lighting,
-classic D&D video game aesthetic"
-```
+### Benefits of AI-Enhanced Prompts
+- **Narrative Consistency**: Images reflect the story Claude is telling
+- **Context Awareness**: Recent events influence visual details
+- **Style Coherence**: Maintains authentic retro gaming aesthetic
+- **Dynamic Scenes**: Same location looks different based on narrative context
 
 ## Performance Optimization
 

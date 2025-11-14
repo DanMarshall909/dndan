@@ -8,12 +8,13 @@ import { Character, Monster } from './types';
 import { CharacterBuilder } from './character';
 import { CombatEngine } from './combat';
 import { AIDungeonMaster } from '../ai/dm';
+import { NPCManager } from '../ai/npc-manager';
 import { SceneCache } from '../ai/cache';
 import { SceneGenerator } from '../ai/scene-gen';
 import { Renderer } from '../render/renderer';
 import { GameUI } from '../render/ui';
 import { InputController, ActionType } from '../input/controls';
-import { SceneDescriptor, Entity } from '../map/types';
+import { SceneDescriptor, Entity, NPC } from '../map/types';
 import { Dice } from './dice';
 import { MONSTER_TEMPLATES } from './data';
 
@@ -32,12 +33,14 @@ export class GameEngine {
   private currentCharacter: Character | null;
   private state: GameState;
   private dm: AIDungeonMaster;
+  private npcManager: NPCManager;
   private sceneCache: SceneCache;
   private sceneGen: SceneGenerator;
   private renderer: Renderer;
   private ui: GameUI;
   private input: InputController;
   private isGeneratingScene: boolean;
+  private currentDialogueNPC: string | null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -50,9 +53,11 @@ export class GameEngine {
     this.currentCharacter = null;
     this.state = GameState.Initializing;
     this.isGeneratingScene = false;
+    this.currentDialogueNPC = null;
 
     // Initialize AI systems
     this.dm = new AIDungeonMaster(); // Uses backend proxy
+    this.npcManager = new NPCManager(undefined, 10000); // 10 second update interval
     this.sceneCache = new SceneCache(500);
     this.sceneGen = new SceneGenerator(sdApiUrl, sdApiKey);
 
@@ -99,6 +104,10 @@ export class GameEngine {
 
     // Spawn some monsters
     this.spawnMonsters(5);
+
+    // Spawn some NPCs
+    this.spawnNPCs(3);
+    this.ui.addMessage('AI-controlled NPCs spawned in the dungeon...', '#0ff');
 
     // Initialize adventure with AI DM
     this.ui.addMessage('The Dungeon Master prepares your adventure...', '#ff0');
@@ -360,16 +369,145 @@ export class GameEngine {
   /**
    * Handle interact action
    */
-  private handleInteract(): void {
+  private async handleInteract(): Promise<void> {
     const pos = this.world.getPlayerPosition();
+
+    // Check for NPCs nearby (within 1 tile)
+    const nearbyNPCs = this.npcManager.getNPCsAt(pos.x, pos.y, 1);
+
+    if (nearbyNPCs.length > 0) {
+      // Interact with the first NPC
+      const npc = nearbyNPCs[0];
+      await this.startDialogue(npc.id);
+      return;
+    }
+
+    // Check for entities at current position
     const entities = this.world.getEntitiesAt(pos);
 
     if (entities.length > 0) {
       const entity = entities[0];
-      this.ui.addMessage(`You interact with ${(entity.data as any).name}`);
+      if (entity.type === 'NPC') {
+        const npcData = entity.data as NPC;
+        if (npcData.hasAgent && npcData.agentId) {
+          await this.startDialogue(npcData.agentId);
+        } else {
+          this.ui.addMessage(`You speak with ${npcData.name}.`);
+        }
+      } else {
+        this.ui.addMessage(`You interact with ${(entity.data as any).name}`);
+      }
     } else {
       this.ui.addMessage('There is nothing here to interact with.');
     }
+  }
+
+  /**
+   * Start dialogue with an NPC
+   */
+  private async startDialogue(npcId: string): Promise<void> {
+    const npc = this.npcManager.getNPC(npcId);
+    if (!npc) {
+      this.ui.addMessage('NPC not found.', '#f00');
+      return;
+    }
+
+    this.currentDialogueNPC = npcId;
+    this.state = GameState.Dialogue;
+
+    this.ui.addMessage(`\n--- Talking to ${npc.name} ---`, '#ff0');
+    this.ui.addMessage(`(${npc.description})`, '#888');
+
+    // Initial greeting from NPC
+    const greeting = await this.npcManager.handleDialogue(
+      npcId,
+      this.currentCharacter?.name || 'Adventurer',
+      'Hello',
+      `The party approaches ${npc.name} in the dungeon.`
+    );
+
+    this.ui.addMessage(`${npc.name}: "${greeting}"`, '#0ff');
+
+    // Show dialogue options
+    this.ui.showDialog(
+      `Conversation with ${npc.name}`,
+      `What would you like to say?`,
+      [
+        {
+          text: 'Ask about the dungeon',
+          callback: () => this.continueDialogue(npcId, 'What can you tell me about this place?'),
+        },
+        {
+          text: 'Ask about quests',
+          callback: () => this.continueDialogue(npcId, 'Do you need any help?'),
+        },
+        {
+          text: 'Trade',
+          callback: () => this.continueDialogue(npcId, 'Do you have anything to trade?'),
+        },
+        {
+          text: 'Farewell',
+          callback: () => this.endDialogue(),
+        },
+      ]
+    );
+  }
+
+  /**
+   * Continue dialogue with an NPC
+   */
+  private async continueDialogue(npcId: string, message: string): Promise<void> {
+    const npc = this.npcManager.getNPC(npcId);
+    if (!npc) return;
+
+    this.ui.addMessage(`You: "${message}"`, '#fff');
+
+    const response = await this.npcManager.handleDialogue(
+      npcId,
+      this.currentCharacter?.name || 'Adventurer',
+      message,
+      `In the dungeon, discussing various topics.`
+    );
+
+    this.ui.addMessage(`${npc.name}: "${response}"`, '#0ff');
+
+    // Show more dialogue options
+    this.ui.showDialog(
+      `Conversation with ${npc.name}`,
+      `Continue conversation?`,
+      [
+        {
+          text: 'Ask about the dungeon',
+          callback: () => this.continueDialogue(npcId, 'What can you tell me about this place?'),
+        },
+        {
+          text: 'Ask about quests',
+          callback: () => this.continueDialogue(npcId, 'Do you need any help?'),
+        },
+        {
+          text: 'Ask about rumors',
+          callback: () => this.continueDialogue(npcId, 'Have you heard any interesting rumors?'),
+        },
+        {
+          text: 'Farewell',
+          callback: () => this.endDialogue(),
+        },
+      ]
+    );
+  }
+
+  /**
+   * End dialogue with an NPC
+   */
+  private endDialogue(): void {
+    if (this.currentDialogueNPC) {
+      const npc = this.npcManager.getNPC(this.currentDialogueNPC);
+      if (npc) {
+        this.ui.addMessage(`You say farewell to ${npc.name}.`, '#888');
+      }
+      this.currentDialogueNPC = null;
+    }
+    this.state = GameState.Exploring;
   }
 
   /**
@@ -426,6 +564,52 @@ export class GameEngine {
       };
 
       this.world.addEntity(entity);
+    }
+  }
+
+  /**
+   * Spawn AI-controlled NPCs in dungeon
+   */
+  private spawnNPCs(count: number): void {
+    for (let i = 0; i < count; i++) {
+      // Find random floor position
+      const x = Dice.roll(40) + 5;
+      const y = Dice.roll(40) + 5;
+
+      // Create NPC with AI agent
+      const managedNPC = this.npcManager.createRandomNPC(
+        crypto.randomUUID(),
+        { x, y }
+      );
+
+      // Create NPC data for world entity
+      const npcData: NPC = {
+        id: managedNPC.id,
+        name: managedNPC.name,
+        description: managedNPC.description,
+        dialogue: [],
+        hostile: managedNPC.alignment.includes('Evil'),
+        questGiver: managedNPC.persona.questPotential,
+        archetype: managedNPC.archetype,
+        alignment: managedNPC.alignment,
+        hasAgent: true,
+        agentId: managedNPC.id,
+      };
+
+      // Add to world
+      const entity: Entity = {
+        id: managedNPC.id,
+        type: 'NPC',
+        position: { x, y },
+        data: npcData,
+      };
+
+      this.world.addEntity(entity);
+
+      this.ui.addMessage(
+        `${managedNPC.name} (${managedNPC.archetype}) appears at (${x}, ${y})`,
+        '#0ff'
+      );
     }
   }
 }

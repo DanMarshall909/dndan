@@ -63,6 +63,11 @@ export interface NPC {
   dialogue: string[];     // AI-generated dialogue
   hostile: boolean;
   questGiver: boolean;
+  // Agent-related fields
+  archetype?: string;     // NPC archetype (Merchant, Guard, etc.)
+  alignment?: string;     // D&D alignment
+  hasAgent?: boolean;     // Whether this NPC has an AI agent
+  agentId?: string;       // ID for the NPC agent
 }
 
 // ============================================================================

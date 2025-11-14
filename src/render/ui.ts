@@ -8,6 +8,7 @@ export class GameUI {
   private container: HTMLElement;
   private logElement: HTMLElement;
   private statsElement: HTMLElement;
+  private minimapCanvas: HTMLCanvasElement;
   private logMessages: string[] = [];
   private maxLogMessages = 50;
 
@@ -21,6 +22,7 @@ export class GameUI {
     // Create UI elements
     this.logElement = this.createLogPanel();
     this.statsElement = this.createStatsPanel();
+    this.minimapCanvas = this.createMinimapPanel();
   }
 
   /**
@@ -68,6 +70,36 @@ export class GameUI {
     `;
     this.container.appendChild(panel);
     return panel;
+  }
+
+  /**
+   * Create minimap panel
+   */
+  private createMinimapPanel(): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'minimap';
+    canvas.width = 128;
+    canvas.height = 128;
+    canvas.style.cssText = `
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      width: 128px;
+      height: 128px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #0a0;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    `;
+    this.container.appendChild(canvas);
+    return canvas;
+  }
+
+  /**
+   * Get minimap canvas for rendering
+   */
+  getMinimapCanvas(): HTMLCanvasElement {
+    return this.minimapCanvas;
   }
 
   /**

@@ -12,6 +12,7 @@ import { SceneCache } from '../ai/cache';
 import { SceneGenerator } from '../ai/scene-gen';
 import { Renderer } from '../render/renderer';
 import { GameUI } from '../render/ui';
+import { Minimap } from '../render/minimap';
 import { InputController, ActionType } from '../input/controls';
 import { SceneDescriptor, Entity } from '../map/types';
 import { Dice } from './dice';
@@ -36,6 +37,7 @@ export class GameEngine {
   private sceneGen: SceneGenerator;
   private renderer: Renderer;
   private ui: GameUI;
+  private minimap: Minimap;
   private input: InputController;
   private isGeneratingScene: boolean;
 
@@ -59,6 +61,7 @@ export class GameEngine {
     // Initialize rendering
     this.renderer = new Renderer(canvas, 160, 100, 2);
     this.ui = new GameUI(uiContainerId);
+    this.minimap = new Minimap(this.ui.getMinimapCanvas());
 
     // Initialize input
     this.input = new InputController();
@@ -109,8 +112,9 @@ export class GameEngine {
     this.ui.updateStats(character);
     this.ui.showControls();
 
-    // Render initial scene
+    // Render initial scene and minimap
     await this.renderCurrentScene();
+    this.updateMinimap();
 
     this.state = GameState.Exploring;
     this.ui.addMessage('Adventure begins!', '#ff0');
@@ -152,6 +156,7 @@ export class GameEngine {
       if (moved) {
         this.ui.addMessage(`You move ${direction.toLowerCase()}.`);
         await this.renderCurrentScene();
+        this.updateMinimap();
 
         // Check for encounters
         this.checkForEncounters();
@@ -162,10 +167,12 @@ export class GameEngine {
       this.world.rotatePlayer(false);
       this.ui.addMessage('You turn left.');
       await this.renderCurrentScene();
+      this.updateMinimap();
     } else if (action === 'RotateRight') {
       this.world.rotatePlayer(true);
       this.ui.addMessage('You turn right.');
       await this.renderCurrentScene();
+      this.updateMinimap();
     } else if (action === 'Interact') {
       this.handleInteract();
     } else if (action === 'CharacterSheet') {
@@ -427,5 +434,12 @@ export class GameEngine {
 
       this.world.addEntity(entity);
     }
+  }
+
+  /**
+   * Update the minimap display
+   */
+  private updateMinimap(): void {
+    this.minimap.render(this.world);
   }
 }

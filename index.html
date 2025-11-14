@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D&D AN - AI Dungeon Master</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      font-family: 'Courier New', monospace;
+      color: #0f0;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    #game-container {
+      position: relative;
+      width: 960px;
+      height: 600px;
+      background: #000;
+      border: 2px solid #0a0;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    canvas {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div class="loading">Loading D&D AN...</div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@
  * Image caching system for generated scenes
  */
 
-import { SceneDescriptor, ViewState, Entity } from '../map/types';
+import { SceneDescriptor } from '../map/types';
 
 export interface CacheEntry {
   hash: string;

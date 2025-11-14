@@ -3,6 +3,7 @@
  */
 
 import { GameEngine } from './game/engine';
+import { ImageGenerationConfig, ImageProvider } from './ai/scene-gen';
 
 async function main() {
   console.log('[D&D AN] Starting...');
@@ -23,17 +24,22 @@ async function main() {
   `;
   container.appendChild(canvas);
 
-  // Load API URLs from environment
-  const sdApiUrl = import.meta.env.VITE_SD_API_URL || 'http://localhost:3001/api';
-  const sdApiKey = import.meta.env.VITE_SD_API_KEY || '';
+  // Load image generation config from environment
+  const imageProvider = (import.meta.env.VITE_IMAGE_PROVIDER || 'placeholder') as ImageProvider;
+  const imageConfig: ImageGenerationConfig = {
+    provider: imageProvider,
+    apiUrl: import.meta.env.VITE_IMAGE_API_URL || '',
+    apiKey: import.meta.env.VITE_IMAGE_API_KEY || '',
+  };
+
+  console.log('[D&D AN] Image provider:', imageProvider);
 
   // Initialize game engine
   try {
     const game = new GameEngine(
       canvas,
       'game-container',
-      sdApiUrl,
-      sdApiKey
+      imageConfig
     );
 
     // Show loading message

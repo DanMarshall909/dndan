@@ -9,7 +9,7 @@ import { CharacterBuilder } from './character';
 import { CombatEngine } from './combat';
 import { AIDungeonMaster } from '../ai/dm';
 import { SceneCache } from '../ai/cache';
-import { SceneGenerator } from '../ai/scene-gen';
+import { SceneGenerator, ImageGenerationConfig } from '../ai/scene-gen';
 import { Renderer } from '../render/renderer';
 import { GameUI } from '../render/ui';
 import { InputController, ActionType } from '../input/controls';
@@ -38,23 +38,26 @@ export class GameEngine {
   private ui: GameUI;
   private input: InputController;
   private isGeneratingScene: boolean;
+  private currentNarrative: string | null;
+  private recentEvents: string[];
 
   constructor(
     canvas: HTMLCanvasElement,
     uiContainerId: string,
-    sdApiUrl: string,
-    sdApiKey: string
+    imageConfig: ImageGenerationConfig
   ) {
     this.world = new World();
     this.party = [];
     this.currentCharacter = null;
     this.state = GameState.Initializing;
     this.isGeneratingScene = false;
+    this.currentNarrative = null;
+    this.recentEvents = [];
 
     // Initialize AI systems
     this.dm = new AIDungeonMaster(); // Uses backend proxy
     this.sceneCache = new SceneCache(500);
-    this.sceneGen = new SceneGenerator(sdApiUrl, sdApiKey);
+    this.sceneGen = new SceneGenerator(imageConfig);
 
     // Initialize rendering
     this.renderer = new Renderer(canvas, 160, 100, 2);
@@ -104,6 +107,8 @@ export class GameEngine {
     this.ui.addMessage('The Dungeon Master prepares your adventure...', '#ff0');
     const intro = await this.dm.initializeAdventure(this.party);
     this.ui.addMessage(intro.narrative, '#fff');
+    this.setNarrative(intro.narrative);
+    this.addEvent('Adventure begins at the dungeon entrance');
 
     // Update UI
     this.ui.updateStats(character);
@@ -151,6 +156,7 @@ export class GameEngine {
       const moved = this.world.movePlayer(direction);
       if (moved) {
         this.ui.addMessage(`You move ${direction.toLowerCase()}.`);
+        this.addEvent(`Moved ${direction.toLowerCase()}`);
         await this.renderCurrentScene();
 
         // Check for encounters
@@ -199,6 +205,8 @@ export class GameEngine {
         visibleEntities,
         lighting: this.world.getState().lighting,
         timeOfDay: this.world.getTimeOfDay(),
+        narrative: this.currentNarrative || undefined,
+        recentEvents: this.recentEvents.slice(-5), // Last 5 events for context
       };
 
       // Check cache
@@ -215,16 +223,15 @@ export class GameEngine {
         this.ui.addMessage('The AI DM paints the scene...', '#0ff');
 
         try {
-          // For now, use placeholder instead of actual SD generation
-          // const imageData = await this.sceneGen.generateScene(descriptor, this.world);
-          const imageData = this.sceneGen.generatePlaceholder(descriptor);
+          // Generate scene with AI enhancement
+          const imageData = await this.sceneGen.generateScene(descriptor, this.world, true);
 
           this.sceneCache.set(hash, imageData, descriptor);
           await this.renderer.renderScene(imageData);
         } catch (error) {
           console.error('Scene generation failed:', error);
           this.renderer.renderPlaceholder(descriptor);
-          this.ui.addMessage('Using placeholder scene.', '#f80');
+          this.ui.addMessage('Scene generation failed, using placeholder.', '#f80');
         }
       }
     } finally {
@@ -267,6 +274,8 @@ export class GameEngine {
 
     const narrative = await this.dm.narrateCombatStart(monsters);
     this.ui.addMessage(narrative.narrative, '#fff');
+    this.setNarrative(narrative.narrative);
+    this.addEvent(`Encountered ${count} ${monsterType}${count > 1 ? 's' : ''}`);
 
     // Add monsters to world at nearby positions
     const playerPos = this.world.getPlayerPosition();
@@ -428,4 +437,29 @@ export class GameEngine {
       this.world.addEntity(entity);
     }
   }
+
+  /**
+   * Set the current narrative context
+   */
+  private setNarrative(narrative: string): void {
+    this.currentNarrative = narrative;
+  }
+
+  /**
+   * Add an event to recent events (for scene generation context)
+   */
+  private addEvent(event: string): void {
+    this.recentEvents.push(event);
+    // Keep only the last 10 events
+    if (this.recentEvents.length > 10) {
+      this.recentEvents.shift();
+    }
+  }
+
+  /**
+   * Clear current narrative (for future use)
+   */
+  // private clearNarrative(): void {
+  //   this.currentNarrative = null;
+  // }
 }

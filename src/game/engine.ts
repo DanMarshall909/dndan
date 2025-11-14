@@ -42,7 +42,6 @@ export class GameEngine {
   constructor(
     canvas: HTMLCanvasElement,
     uiContainerId: string,
-    claudeApiKey: string,
     sdApiUrl: string,
     sdApiKey: string
   ) {
@@ -53,7 +52,7 @@ export class GameEngine {
     this.isGeneratingScene = false;
 
     // Initialize AI systems
-    this.dm = new AIDungeonMaster(claudeApiKey);
+    this.dm = new AIDungeonMaster(); // Uses backend proxy
     this.sceneCache = new SceneCache(500);
     this.sceneGen = new SceneGenerator(sdApiUrl, sdApiKey);
 

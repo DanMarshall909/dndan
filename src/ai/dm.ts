@@ -1,8 +1,7 @@
 /**
- * AI Dungeon Master using Claude
+ * AI Dungeon Master using Claude (via backend proxy)
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { Character, Monster } from '../game/types';
 import { AttackResult } from '../game/combat';
 
@@ -11,12 +10,17 @@ export interface DMResponse {
   suggestions?: string[];
 }
 
-export class AIDungeonMaster {
-  private client: Anthropic;
-  private conversationHistory: Anthropic.MessageParam[];
+interface MessageParam {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
-  constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey });
+export class AIDungeonMaster {
+  private apiUrl: string;
+  private conversationHistory: MessageParam[];
+
+  constructor(apiUrl: string = 'http://localhost:3001/api/claude') {
+    this.apiUrl = apiUrl;
     this.conversationHistory = [];
   }
 
@@ -181,20 +185,28 @@ Make it feel rewarding. 1-2 sentences.`;
         this.conversationHistory = this.conversationHistory.slice(-20);
       }
 
-      const response = await this.client.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 300,
-        temperature: 0.8,
-        system: `You are an experienced Dungeon Master for AD&D 1st/2nd Edition.
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: this.conversationHistory,
+          system: `You are an experienced Dungeon Master for AD&D 1st/2nd Edition.
 Your narration is atmospheric, engaging, and true to classic fantasy adventure.
 Keep responses concise but evocative. Use vivid sensory details.
 Maintain the spirit of old-school D&D - challenging but fair.`,
-        messages: this.conversationHistory,
+          temperature: 0.8,
+          max_tokens: 300,
+        }),
       });
 
-      const content = response.content[0];
-      const narrative =
-        content.type === 'text' ? content.text : 'The DM considers the situation...';
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const narrative = data.narrative || 'The DM considers the situation...';
 
       // Add assistant response to history
       this.conversationHistory.push({
@@ -225,14 +237,14 @@ Maintain the spirit of old-school D&D - challenging but fair.`,
   /**
    * Get conversation history for saving
    */
-  getHistory(): Anthropic.MessageParam[] {
+  getHistory(): MessageParam[] {
     return [...this.conversationHistory];
   }
 
   /**
    * Load conversation history
    */
-  loadHistory(history: Anthropic.MessageParam[]): void {
+  loadHistory(history: MessageParam[]): void {
     this.conversationHistory = [...history];
   }
 }

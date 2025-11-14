@@ -23,21 +23,15 @@ async function main() {
   `;
   container.appendChild(canvas);
 
-  // Load API keys from environment or prompt user
-  const claudeApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
+  // Load API URLs from environment
   const sdApiUrl = import.meta.env.VITE_SD_API_URL || 'http://localhost:3001/api';
   const sdApiKey = import.meta.env.VITE_SD_API_KEY || '';
-
-  if (!claudeApiKey) {
-    console.warn('[D&D AN] No Claude API key found. AI DM features will be limited.');
-  }
 
   // Initialize game engine
   try {
     const game = new GameEngine(
       canvas,
       'game-container',
-      claudeApiKey,
       sdApiUrl,
       sdApiKey
     );

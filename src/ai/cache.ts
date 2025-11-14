@@ -3,7 +3,6 @@
  */
 
 import { SceneDescriptor, ViewState, Entity } from '../map/types';
-import crypto from 'crypto';
 
 export interface CacheEntry {
   hash: string;
@@ -46,7 +45,14 @@ export class SceneCache {
       timeOfDay,
     });
 
-    return crypto.createHash('sha256').update(hashInput).digest('hex');
+    // Simple hash function for browser compatibility
+    let hash = 0;
+    for (let i = 0; i < hashInput.length; i++) {
+      const char = hashInput.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(36);
   }
 
   /**

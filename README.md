@@ -7,6 +7,7 @@ An old-school Advanced Dungeons & Dragons roguelike game where an AI acts as the
 D&D AN combines classic AD&D 1st/2nd Edition rules with modern AI technology to create a unique roguelike experience:
 
 - **AI Dungeon Master**: Claude AI generates dynamic narratives, encounters, and storylines
+- **LangChain NPC Agents**: 12 distinct AI-controlled characters with memory, personalities, and autonomous behavior
 - **Pixel Art Generation**: Stable Diffusion creates 160x100 pixel art scenes for each frame
 - **Scene Caching**: Identical views (position + orientation) reuse cached images for performance
 - **Traditional Mechanics**: THAC0, saving throws, Vancian magic, and authentic AD&D calculations
@@ -29,6 +30,11 @@ D&D AN combines classic AD&D 1st/2nd Edition rules with modern AI technology to 
 
 ### AI Integration
 - **Claude (DM)**: Story generation, combat narration, NPC dialogue, quest creation
+- **LangChain NPCs**: Autonomous AI agents controlling world characters with:
+  - Individual personalities from 12 archetypes (Merchant, Guard, Hermit, etc.)
+  - Memory systems tracking past conversations and relationships
+  - Context-aware decision making and dialogue
+  - Dynamic relationship levels (Hostile → Allied)
 - **Stable Diffusion**: Pixel art scene generation with consistent retro style
 - **Caching Strategy**: Reduces API costs and ensures instant response for explored areas
 
@@ -76,6 +82,9 @@ dndan/
 │   │   └── entities.ts    # NPCs, monsters, objects
 │   ├── ai/                # AI integration
 │   │   ├── dm.ts          # Claude DM integration
+│   │   ├── npc-agent.ts   # LangChain NPC agents
+│   │   ├── npc-manager.ts # NPC coordination system
+│   │   ├── npc-personas.ts # NPC personality templates
 │   │   ├── scene-gen.ts   # Stable Diffusion client
 │   │   └── cache.ts       # Image caching system
 │   ├── render/            # Graphics rendering
@@ -87,6 +96,11 @@ dndan/
 │   ├── server/            # Backend API
 │   │   └── index.ts       # Express server for AI endpoints
 │   └── main.ts            # Application entry point
+├── docs/                  # Documentation
+│   ├── GAME_DESIGN.md
+│   ├── DEVELOPMENT.md
+│   ├── API.md
+│   └── NPC_AGENT_SYSTEM.md  # LangChain NPC documentation
 ├── public/                # Static assets
 ├── image-cache/           # Cached generated scenes
 ├── saves/                 # Saved game files
@@ -161,8 +175,16 @@ Navigate to `http://localhost:3000`
 - **Save often**: Use the menu to save your progress
 - **Manage resources**: Spells and HP don't regenerate without rest
 - **Map mentally**: The world is consistent; learn the layout
-- **Talk to NPCs**: AI DM creates rich dialogue and quests
+- **Talk to NPCs**: AI-powered NPCs remember conversations and build relationships
+- **Build relationships**: NPCs react differently based on your past interactions
 - **Search for secrets**: Examine walls and objects for hidden doors/traps
+
+### Interacting with NPCs
+- **Approach**: Move within 1 tile of an NPC
+- **Initiate**: Press Space to start conversation
+- **Choose dialogue**: Select from context-aware options
+- **Remember**: NPCs track your choices and relationship levels
+- **12 Archetypes**: Merchant, Guard, Innkeeper, QuestGiver, Hermit, Priest, Thief, Noble, Peasant, Scholar, Blacksmith, Mysterious Stranger
 
 ## AD&D Rules Reference
 
@@ -246,17 +268,19 @@ classic D&D video game aesthetic"
 - [x] TypeScript configuration
 - [x] Vite build system
 
-### Phase 2: Core Systems (In Progress)
-- [ ] World map and entity storage
-- [ ] AD&D character system
-- [ ] Combat mechanics (THAC0, damage, saves)
-- [ ] Movement and rotation
+### Phase 2: Core Systems ✓
+- [x] World map and entity storage
+- [x] AD&D character system
+- [x] Combat mechanics (THAC0, damage, saves)
+- [x] Movement and rotation
 
-### Phase 3: AI Integration
-- [ ] Claude DM API client
-- [ ] Stable Diffusion scene generation
-- [ ] Image caching system
-- [ ] Prompt engineering for consistent art
+### Phase 3: AI Integration ✓
+- [x] Claude DM API client
+- [x] LangChain NPC agent system with 12 archetypes
+- [x] NPC memory and relationship tracking
+- [x] Stable Diffusion scene generation
+- [x] Image caching system
+- [x] Prompt engineering for consistent art
 
 ### Phase 4: UI & Rendering
 - [ ] Canvas renderer (320x200 viewport)

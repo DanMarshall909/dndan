@@ -56,6 +56,9 @@ dndan/
 │   │   └── generator.ts   # Dungeon generation
 │   ├── ai/                # AI integration
 │   │   ├── dm.ts          # Claude DM
+│   │   ├── npc-agent.ts   # LangChain NPC agents
+│   │   ├── npc-manager.ts # NPC agent coordinator
+│   │   ├── npc-personas.ts # NPC personality templates
 │   │   ├── scene-gen.ts   # Stable Diffusion
 │   │   └── cache.ts       # Image caching
 │   ├── render/            # Graphics
@@ -67,6 +70,10 @@ dndan/
 │   │   └── index.ts       # Express server
 │   └── main.ts            # Entry point
 ├── docs/                  # Documentation
+│   ├── GAME_DESIGN.md
+│   ├── DEVELOPMENT.md
+│   ├── API.md
+│   └── NPC_AGENT_SYSTEM.md  # LangChain NPC docs
 ├── public/                # Static assets
 ├── dist/                  # Build output
 └── package.json
@@ -174,6 +181,73 @@ export class GameUI {
     // Update panel content
   }
 }
+```
+
+### Working with NPC Agents
+
+**Create a new NPC archetype** in `src/ai/npc-personas.ts`:
+
+```typescript
+export const PERSONA_TEMPLATES: Record<NPCArchetype, Partial<NPCPersona>> = {
+  // ...existing archetypes...
+  Wizard: {
+    archetype: 'Wizard',
+    personality: ['scholarly', 'absent-minded', 'powerful'],
+    motivations: ['pursue arcane knowledge', 'protect magical secrets'],
+    knowledgeAreas: ['spellcasting', 'magical theory', 'ancient lore'],
+    speechPatterns: ['uses arcane terminology', 'speaks abstractly'],
+    questPotential: true,
+  },
+};
+```
+
+**Spawn NPCs programmatically**:
+
+```typescript
+// Create a specific NPC
+const merchant = npcManager.createNPC(
+  'merchant-1',
+  'Gareth Goldleaf',
+  'a shrewd merchant with exotic wares',
+  'Merchant',
+  'Neutral Good',
+  { x: 10, y: 15 }
+);
+
+// Or create random NPCs
+for (let i = 0; i < 5; i++) {
+  const npc = npcManager.createRandomNPC(
+    crypto.randomUUID(),
+    { x: Dice.roll(40) + 5, y: Dice.roll(40) + 5 }
+  );
+}
+```
+
+**Handle NPC dialogue**:
+
+```typescript
+const response = await npcManager.handleDialogue(
+  npcId,
+  'PlayerName',
+  'What do you know about the ancient ruins?',
+  'In the town square, discussing local legends'
+);
+```
+
+**Update NPC relationships**:
+
+```typescript
+// Positive interaction
+npcManager.updateRelationship('merchant-1', 'PlayerName', 1);
+
+// Negative interaction
+npcManager.updateRelationship('guard-1', 'PlayerName', -1);
+```
+
+**Add facts to NPC memory**:
+
+```typescript
+npcManager.addNPCFact('hermit-1', 'The party defeated the goblin king');
 ```
 
 ## Testing
@@ -423,11 +497,62 @@ public attackMonster(character: Character): AttackResult {
 4. Test thoroughly
 5. Submit pull request with description
 
+## LangChain NPC System
+
+### Architecture Overview
+
+The NPC agent system consists of three layers:
+
+1. **NPC Personas** (`npc-personas.ts`): Templates defining personality archetypes
+2. **NPC Agent** (`npc-agent.ts`): Individual LangChain agents for each NPC
+3. **NPC Manager** (`npc-manager.ts`): Central coordinator for all agents
+
+### Debugging NPC Agents
+
+**View NPC agent state**:
+
+```typescript
+const npc = npcManager.getNPC('npc-id');
+console.log('NPC Info:', npc.agent.getInfo());
+```
+
+**Test NPC dialogue**:
+
+```typescript
+const response = await npcManager.handleDialogue(
+  'merchant-1',
+  'TestPlayer',
+  'Hello',
+  'Testing dialogue system'
+);
+console.log('Response:', response);
+```
+
+**Inspect NPC memory**:
+
+```typescript
+const npc = npcManager.getNPC('npc-id');
+const state = npc.agent.saveState();
+console.log('Interactions:', state.memory.interactions);
+console.log('Relationships:', state.memory.relationships);
+console.log('Facts:', state.memory.facts);
+```
+
+### Performance Considerations
+
+- NPCs update autonomously every 10 seconds
+- Each NPC maintains last 50 interactions
+- Conversation uses Claude Sonnet 4.5 (200 token limit)
+- Rate limiting prevents API spam
+
+See [NPC Agent System Documentation](NPC_AGENT_SYSTEM.md) for complete details.
+
 ## Resources
 
 - [AD&D 2nd Edition Player's Handbook](https://en.wikipedia.org/wiki/Player%27s_Handbook)
 - [Pool of Radiance](https://en.wikipedia.org/wiki/Pool_of_Radiance) - Inspiration
 - [Anthropic Claude API](https://docs.anthropic.com/claude/reference)
+- [LangChain Documentation](https://js.langchain.com/docs/)
 - [Stable Diffusion](https://github.com/Stability-AI/stablediffusion)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - [Vite Guide](https://vitejs.dev/guide/)

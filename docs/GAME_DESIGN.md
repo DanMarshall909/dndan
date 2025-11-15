@@ -19,8 +19,9 @@ D&D AN is a roguelike RPG that combines classic Advanced Dungeons & Dragons mech
 
 ### 2. AI-Driven Narrative
 - Dynamic storytelling by Claude AI
+- **LangChain-powered NPC agents** with autonomous behavior
 - Contextual quest generation
-- Meaningful NPC interactions
+- Meaningful NPC interactions with memory
 - Adaptive difficulty
 
 ### 3. Visual Nostalgia
@@ -184,7 +185,7 @@ Roll 1d20 ≥ target to succeed.
 
 **Responsibilities**:
 1. **Narrative**: Describe environments, events, outcomes
-2. **NPCs**: Generate dialogue, personalities, motivations
+2. **NPCs**: Generate dialogue, personalities, motivations (with LangChain agents)
 3. **Quests**: Create goals, hooks, rewards
 4. **Combat**: Narrate attacks, victories, defeats
 5. **Atmosphere**: Set tone, build tension
@@ -202,6 +203,59 @@ Maintain the spirit of old-school D&D - challenging but fair.
 - Key events summarized
 - Party state tracked
 - Location history maintained
+
+### LangChain NPC Agent System
+
+**Architecture**:
+Each NPC is controlled by an autonomous LangChain agent powered by Claude Sonnet 4.5.
+
+**12 NPC Archetypes**:
+- Merchant, Guard, Innkeeper, QuestGiver
+- Hermit, Priest, Thief, Noble
+- Peasant, Scholar, Blacksmith, Mysterious Stranger
+
+**Agent Capabilities**:
+1. **Dialogue**: Context-aware conversations based on personality
+2. **Memory**: Remembers past interactions (last 50)
+3. **Relationships**: Tracks relationship levels with party members
+4. **Decision-Making**: Autonomous actions based on situation
+5. **Learning**: Accumulates knowledge about the world
+
+**Persona System**:
+Each NPC has:
+- **Personality Traits**: Defines behavior patterns
+- **Motivations**: Drives their actions and goals
+- **Knowledge Areas**: What they know about
+- **Speech Patterns**: How they communicate
+- **Alignment**: Affects initial relationship
+
+**Memory System**:
+```typescript
+{
+  interactions: InteractionMemory[],  // Last 50 conversations
+  facts: string[],                    // Learned information
+  relationships: Map<string, Level>,  // Party member relationships
+  lastUpdated: timestamp
+}
+```
+
+**Relationship Levels**:
+- Hostile → Unfriendly → Neutral → Friendly → Allied
+
+**Example Interaction Flow**:
+1. Player approaches NPC (within 1 tile)
+2. NPC agent generates greeting based on:
+   - Archetype personality
+   - Previous interactions
+   - Current relationship level
+   - Context (location, time, events)
+3. Player chooses dialogue option
+4. Agent processes input through LangChain
+5. Generates contextual response
+6. Updates memory and relationship
+7. Continues conversation or ends
+
+See [NPC Agent System Documentation](NPC_AGENT_SYSTEM.md) for complete details.
 
 ### Dungeon Generation
 
@@ -432,10 +486,10 @@ Level 3→4: 8000 XP
 
 ### Phase 3 Features
 - Overworld map
-- Towns and NPCs
-- Shops and trading
-- Character reputation
-- Multiple quest lines
+- Towns with AI-controlled NPCs ✓
+- Shops and trading (NPC agents ready)
+- Character reputation (relationship system ✓)
+- Multiple quest lines (NPC quest generation ready)
 
 ### Phase 4 Features
 - Multiplayer (shared DM)

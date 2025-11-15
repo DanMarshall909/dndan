@@ -7,7 +7,9 @@ An old-school Advanced Dungeons & Dragons roguelike game where an AI acts as the
 D&D AN combines classic AD&D 1st/2nd Edition rules with modern AI technology to create a unique roguelike experience:
 
 - **AI Dungeon Master**: Claude AI generates dynamic narratives, encounters, and storylines
-- **Pixel Art Generation**: Stable Diffusion creates 160x100 pixel art scenes for each frame
+- **LangChain NPC Agents**: 12 distinct AI-controlled characters with memory, personalities, and autonomous behavior
+- **Multi-Provider Image Generation**: Support for OpenAI DALL-E, Replicate, and Stability AI
+- **Pixel Art Generation**: AI creates 160x100 pixel art scenes for each frame
 - **Scene Caching**: Identical views (position + orientation) reuse cached images for performance
 - **Traditional Mechanics**: THAC0, saving throws, Vancian magic, and authentic AD&D calculations
 - **Grid-Based Movement**: Move one tile at a time, rotate 90 degrees
@@ -30,6 +32,11 @@ D&D AN combines classic AD&D 1st/2nd Edition rules with modern AI technology to 
 ### AI Integration
 - **Claude (DM)**: Story generation, combat narration, NPC dialogue, quest creation
 - **Claude (Scene Prompts)**: Enhances image prompts by combining game state, map layout, and narrative context
+- **LangChain NPCs**: Autonomous AI agents controlling world characters with:
+  - Individual personalities from 12 archetypes (Merchant, Guard, Hermit, etc.)
+  - Memory systems tracking past conversations and relationships
+  - Context-aware decision making and dialogue
+  - Dynamic relationship levels (Hostile → Allied)
 - **Multi-Provider Image Generation**: Support for OpenAI DALL-E, Replicate, and Stability AI
 - **Narrative-Driven Visuals**: Generated images reflect the current story, recent events, and DM narration
 - **Caching Strategy**: Reduces API costs and ensures instant response for explored areas
@@ -78,6 +85,9 @@ dndan/
 │   │   └── entities.ts    # NPCs, monsters, objects
 │   ├── ai/                # AI integration
 │   │   ├── dm.ts          # Claude DM integration
+│   │   ├── npc-agent.ts   # LangChain NPC agents
+│   │   ├── npc-manager.ts # NPC coordination system
+│   │   ├── npc-personas.ts # NPC personality templates
 │   │   ├── scene-gen.ts   # Stable Diffusion client
 │   │   └── cache.ts       # Image caching system
 │   ├── render/            # Graphics rendering
@@ -89,6 +99,11 @@ dndan/
 │   ├── server/            # Backend API
 │   │   └── index.ts       # Express server for AI endpoints
 │   └── main.ts            # Application entry point
+├── docs/                  # Documentation
+│   ├── GAME_DESIGN.md
+│   ├── DEVELOPMENT.md
+│   ├── API.md
+│   └── NPC_AGENT_SYSTEM.md  # LangChain NPC documentation
 ├── public/                # Static assets
 ├── image-cache/           # Cached generated scenes
 ├── saves/                 # Saved game files
@@ -102,11 +117,8 @@ dndan/
 
 ### Prerequisites
 - Node.js 20+
-- Anthropic API key (for Claude DM - **required**)
-- Image generation API key (optional - defaults to placeholder mode)
-  - OpenAI API key (for DALL-E 3)
-  - Replicate API key (for pixel art models)
-  - Stability AI API key (for Stable Diffusion)
+- Anthropic API key (for Claude)
+- Stable Diffusion API access (e.g., Stability AI, local installation, or Replicate)
 
 ### Setup
 
@@ -116,29 +128,12 @@ npm install
 ```
 
 2. **Configure environment**:
-Copy `.env.example` to `.env` and configure your API keys:
-```bash
-cp .env.example .env
+Create `.env` file with your API keys:
 ```
-
-Edit `.env` with your credentials:
-```bash
-# Required: Claude for AI Dungeon Master
-VITE_ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional: Choose image generation provider
-VITE_IMAGE_PROVIDER=placeholder  # Options: placeholder, openai, replicate, stability
-
-# Add corresponding API key based on provider:
-OPENAI_API_KEY=sk-...              # If using OpenAI DALL-E
-REPLICATE_API_KEY=r8_...           # If using Replicate
-STABILITY_API_KEY=sk-...           # If using Stability AI
+ANTHROPIC_API_KEY=your_claude_api_key
+SD_API_KEY=your_stable_diffusion_key
+SD_API_URL=https://api.stability.ai/v1/generation
 ```
-
-**Provider Recommendations:**
-- **Development**: Use `placeholder` (free, instant, no API key needed)
-- **Production**: Use `openai` (easiest, great quality) or `replicate` (best pixel art)
 
 3. **Run development server**:
 ```bash
@@ -183,8 +178,16 @@ Navigate to `http://localhost:3000`
 - **Save often**: Use the menu to save your progress
 - **Manage resources**: Spells and HP don't regenerate without rest
 - **Map mentally**: The world is consistent; learn the layout
-- **Talk to NPCs**: AI DM creates rich dialogue and quests
+- **Talk to NPCs**: AI-powered NPCs remember conversations and build relationships
+- **Build relationships**: NPCs react differently based on your past interactions
 - **Search for secrets**: Examine walls and objects for hidden doors/traps
+
+### Interacting with NPCs
+- **Approach**: Move within 1 tile of an NPC
+- **Initiate**: Press Space to start conversation
+- **Choose dialogue**: Select from context-aware options
+- **Remember**: NPCs track your choices and relationship levels
+- **12 Archetypes**: Merchant, Guard, Innkeeper, QuestGiver, Hermit, Priest, Thief, Noble, Peasant, Scholar, Blacksmith, Mysterious Stranger
 
 ## AD&D Rules Reference
 
@@ -221,49 +224,30 @@ Roll 1d20 ≥ save value to succeed.
 3. Fill available spell slots
 4. Cast spells (one-time use until next rest)
 
-## AI-Enhanced Image Generation
+## Stable Diffusion Prompts
 
-The game uses a two-stage AI process for generating visually coherent scenes:
+The game generates prompts for consistent pixel art style:
 
-### Stage 1: Claude Prompt Enhancement
-Claude analyzes the current game state and creates detailed image generation prompts:
-- **Game State**: Player position, facing direction, lighting, time of day
-- **Map Layout**: Visible tiles, doors, walls, treasures, traps
-- **Narrative Context**: Current DM narration and recent story events
-- **Visible Entities**: Monsters, NPCs, items in the player's field of view
-- **Style Requirements**: Pixel art, retro aesthetic, specific color palette
-
-### Stage 2: Image Generation
-The enhanced prompt is sent to your chosen provider:
-- **OpenAI DALL-E 3**: Modern, high-quality images with pixel art styling
-- **Replicate**: Specialized pixel art models for authentic retro look
-- **Stability AI**: Stable Diffusion XL with fine control over generation
-
-### Example Workflow
+### Template
 ```
-Game State:
-- Position: (15, 23), Facing: North
-- Lighting: Dim
-- Narrative: "Three goblins emerge from the shadows, weapons drawn!"
-- Visible: Stone walls, wooden door, 3 goblin entities
-
-Claude Enhancement:
-"Create a top-down dungeon view in the style of classic SSI Gold Box D&D games.
-The scene shows a dimly lit stone corridor with moss-covered walls and a worn
-cobblestone floor. Three goblin warriors with rusty short swords advance from
-the northern passage, their eyes glinting in the flickering torchlight. A wooden
-door is visible to the east. Use 160x100 pixel art resolution with a 256-color
-EGA palette, crisp pixels, no anti-aliasing, retro RPG aesthetic."
-
-Generated Image:
-[Pixel art scene matching the description and narrative]
+160x100 pixel art, 256-color palette, retro RPG style,
+[perspective: top-down/isometric], [location description],
+[entities present], [lighting/atmosphere],
+inspired by Pool of Radiance and SSI Gold Box games
 ```
 
-### Benefits of AI-Enhanced Prompts
-- **Narrative Consistency**: Images reflect the story Claude is telling
-- **Context Awareness**: Recent events influence visual details
-- **Style Coherence**: Maintains authentic retro gaming aesthetic
-- **Dynamic Scenes**: Same location looks different based on narrative context
+### Example Prompts
+```
+"160x100 pixel art, 256-color EGA palette, top-down view,
+stone dungeon corridor, torch sconces on north wall,
+wooden door to the east, goblin warrior 10 feet ahead
+holding rusty sword, dim torchlight, retro RPG style"
+
+"160x100 pixel art, 256-color palette, isometric view,
+tavern interior, wooden tables and chairs, fireplace on west wall,
+bearded dwarf bartender behind counter, cozy warm lighting,
+classic D&D video game aesthetic"
+```
 
 ## Performance Optimization
 
@@ -287,17 +271,19 @@ Generated Image:
 - [x] TypeScript configuration
 - [x] Vite build system
 
-### Phase 2: Core Systems (In Progress)
-- [ ] World map and entity storage
-- [ ] AD&D character system
-- [ ] Combat mechanics (THAC0, damage, saves)
-- [ ] Movement and rotation
+### Phase 2: Core Systems ✓
+- [x] World map and entity storage
+- [x] AD&D character system
+- [x] Combat mechanics (THAC0, damage, saves)
+- [x] Movement and rotation
 
-### Phase 3: AI Integration
-- [ ] Claude DM API client
-- [ ] Stable Diffusion scene generation
-- [ ] Image caching system
-- [ ] Prompt engineering for consistent art
+### Phase 3: AI Integration ✓
+- [x] Claude DM API client
+- [x] LangChain NPC agent system with 12 archetypes
+- [x] NPC memory and relationship tracking
+- [x] Stable Diffusion scene generation
+- [x] Image caching system
+- [x] Prompt engineering for consistent art
 
 ### Phase 4: UI & Rendering
 - [ ] Canvas renderer (320x200 viewport)

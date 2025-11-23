@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TestTextProvider, NO_RESPONSES_ERROR } from '../providers/test-text-provider';
+import { TestTextProvider, NO_RESPONSES_ERROR, CapturedRequest } from '../providers/test-text-provider';
 
 describe('TestTextProvider', () => {
   describe('canned responses', () => {
@@ -70,10 +70,46 @@ describe('TestTextProvider', () => {
   });
 
   describe('request capture', () => {
-    it.todo('captures all requests for assertions');
+    it('captures all requests for assertions', async () => {
+      const provider = new TestTextProvider({
+        responses: [{ content: 'Response' }],
+      });
+
+      await provider.generateText({
+        messages: [{ role: 'user', content: 'First message' }],
+      });
+      await provider.generateText({
+        messages: [{ role: 'user', content: 'Second message' }],
+      });
+
+      expect(provider.requests).toHaveLength(2);
+      expect(provider.requests[0].request.messages[0].content).toBe('First message');
+      expect(provider.requests[1].request.messages[0].content).toBe('Second message');
+    });
+
     it.todo('records request timestamp');
-    it.todo('records full request parameters');
+
+    it('records full request parameters', async () => {
+      const provider = new TestTextProvider({
+        responses: [{ content: 'Response' }],
+      });
+
+      await provider.generateText({
+        system: 'You are a helpful assistant',
+        messages: [{ role: 'user', content: 'Hello' }],
+        temperature: 0.7,
+        maxTokens: 100,
+      });
+
+      const captured = provider.requests[0];
+      expect(captured.request.system).toBe('You are a helpful assistant');
+      expect(captured.request.messages[0].content).toBe('Hello');
+      expect(captured.request.temperature).toBe(0.7);
+      expect(captured.request.maxTokens).toBe(100);
+    });
+
     it.todo('allows clearing captured requests');
+    it.todo('verifies conversation history in multi-turn interaction');
   });
 
   describe('delay simulation', () => {

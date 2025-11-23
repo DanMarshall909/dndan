@@ -11,6 +11,14 @@ export const NO_RESPONSES_ERROR = 'No canned responses configured';
 export type CannedResponse = TextGenerationResponse;
 
 /**
+ * A captured request with metadata.
+ */
+export interface CapturedRequest {
+  /** The original request */
+  request: TextGenerationRequest;
+}
+
+/**
  * Configuration options for TestTextProvider.
  */
 export interface TestTextProviderConfig {
@@ -25,6 +33,7 @@ export interface TestTextProviderConfig {
 export class TestTextProvider implements ITextProvider {
   private responses: CannedResponse[];
   private currentIndex = 0;
+  private capturedRequests: CapturedRequest[] = [];
 
   /**
    * Creates a new TestTextProvider with the given configuration.
@@ -35,14 +44,24 @@ export class TestTextProvider implements ITextProvider {
   }
 
   /**
+   * Gets all captured requests made to this provider.
+   * @returns Array of captured requests
+   */
+  get requests(): CapturedRequest[] {
+    return this.capturedRequests;
+  }
+
+  /**
    * Generates text by returning the next canned response.
-   * @param _request - The generation request (ignored for canned responses)
+   * @param request - The generation request
    * @returns Promise resolving to the next canned response
    * @throws Error if no responses are configured
    */
   async generateText(
-    _request: TextGenerationRequest
+    request: TextGenerationRequest
   ): Promise<TextGenerationResponse> {
+    this.capturedRequests.push({ request });
+
     if (this.responses.length === 0) {
       throw new Error(NO_RESPONSES_ERROR);
     }

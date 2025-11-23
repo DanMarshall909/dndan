@@ -1,17 +1,11 @@
-/**
+﻿/**
  * LangChain-based NPC Agent Controller
  * Each NPC has an autonomous agent that controls their behavior
  */
 
-import { ChatAnthropic } from '@langchain/anthropic';
-import { StringOutputParser } from '@langchain/core/output_parsers';
-import {
-  ChatPromptTemplate,
-  MessagesPlaceholder,
-} from '@langchain/core/prompts';
-import { AIMessage, HumanMessage, BaseMessage } from '@langchain/core/messages';
 import { NPCPersona, generatePersonaPrompt } from './npc-personas';
 import { Character } from '../game/types';
+import { ITextProvider } from './providers/types';
 
 export interface NPCMemory {
   interactions: InteractionMemory[];
@@ -51,37 +45,33 @@ export interface NPCDecisionContext {
   currentObjective?: string;
 }
 
+interface MessageParam {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 /**
- * Individual NPC Agent powered by LangChain
+ * Individual NPC Agent powered by ITextProvider
  */
 export class NPCAgent {
   private id: string;
   private name: string;
   private persona: NPCPersona;
-  private model: ChatAnthropic;
+  private provider: ITextProvider;
   private memory: NPCMemory;
-  private conversationChain: any;
   private systemPrompt: string;
 
   constructor(
     id: string,
     name: string,
     persona: NPCPersona,
-    apiKey?: string
+    provider: ITextProvider
   ) {
     this.id = id;
     this.name = name;
     this.persona = persona;
+    this.provider = provider;
 
-    // Initialize LangChain ChatAnthropic model
-    this.model = new ChatAnthropic({
-      modelName: 'claude-sonnet-4-5-20250929',
-      temperature: 0.9, // Higher temperature for more varied NPC behavior
-      maxTokens: 200,
-      apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
-    });
-
-    // Initialize memory
     this.memory = {
       interactions: [],
       facts: [],
@@ -89,24 +79,56 @@ export class NPCAgent {
       lastUpdated: Date.now(),
     };
 
-    // Generate system prompt from persona
     this.systemPrompt = generatePersonaPrompt(persona, name);
-
-    // Initialize conversation chain
-    this.initializeChain();
   }
 
   /**
-   * Initialize the LangChain conversation chain
+   * Get the agent's unique identifier.
    */
-  private initializeChain(): void {
-    const prompt = ChatPromptTemplate.fromMessages([
-      ['system', this.systemPrompt],
-      new MessagesPlaceholder('history'),
-      ['human', '{input}'],
-    ]);
+  getId(): string {
+    return this.id;
+  }
 
-    this.conversationChain = prompt.pipe(this.model).pipe(new StringOutputParser());
+  /**
+   * Get the agent's name.
+   */
+  getName(): string {
+    return this.name;
+  }
+
+  /**
+   * Get the agent's persona.
+   */
+  getPersona(): NPCPersona {
+    return this.persona;
+  }
+
+  /**
+   * Save agent state for persistence.
+   */
+  saveState(): object {
+    return {
+      id: this.id,
+      name: this.name,
+      memory: {
+        interactions: this.memory.interactions,
+        facts: this.memory.facts,
+        relationships: Array.from(this.memory.relationships.entries()),
+        lastUpdated: this.memory.lastUpdated,
+      },
+    };
+  }
+
+  /**
+   * Load agent state from persistence.
+   */
+  loadState(state: any): void {
+    if (state.memory) {
+      this.memory.interactions = state.memory.interactions || [];
+      this.memory.facts = state.memory.facts || [];
+      this.memory.relationships = new Map(state.memory.relationships || []);
+      this.memory.lastUpdated = state.memory.lastUpdated || Date.now();
+    }
   }
 
   /**
@@ -117,24 +139,13 @@ export class NPCAgent {
     message: string,
     context: string
   ): Promise<string> {
-    // Add to memory
     this.addInteraction(speaker, message, context);
 
-    // Build conversation history
-    const history = this.buildConversationHistory();
-
-    // Generate response
-    const input = `${speaker} says: "${message}"\n\nContext: ${context}\n\nRespond as ${this.name} would, staying in character.`;
+    const prompt = `${speaker} says: "${message}"\n\nContext: ${context}\n\nRespond as ${this.name} would, staying in character.`;
 
     try {
-      const response = await this.conversationChain.invoke({
-        history,
-        input,
-      });
-
-      // Store the response in memory
+      const response = await this.queryLLM(prompt, 10);
       this.addInteraction(this.name, response, context);
-
       return response;
     } catch (error) {
       console.error(`[NPC Agent ${this.name}] Dialogue error:`, error);
@@ -146,34 +157,10 @@ export class NPCAgent {
    * Make a decision about what action to take
    */
   async decideAction(context: NPCDecisionContext): Promise<NPCAction> {
-    const prompt = `Current situation:
-Location: ${context.currentLocation}
-Nearby: ${context.nearbyEntities.join(', ')}
-Party members: ${context.partyMembers.map((c) => c.name).join(', ')}
-Recent events: ${context.recentEvents.join('; ')}
-${context.currentObjective ? `Objective: ${context.currentObjective}` : ''}
-
-Based on your personality, motivations, and the current situation, what do you do?
-Choose ONE action:
-- dialogue: Speak to someone nearby
-- combat: Attack or defend
-- trade: Offer to trade items
-- quest: Offer a quest or task
-- movement: Move to a different location
-- idle: Continue current activity
-
-Respond in this format:
-ACTION: [action type]
-DESCRIPTION: [brief description of what you do]
-TARGET: [who or what you're targeting, if applicable]`;
+    const prompt = `Current situation:\nLocation: ${context.currentLocation}\nNearby: ${context.nearbyEntities.join(', ')}\nParty members: ${context.partyMembers.map((c) => c.name).join(', ')}\nRecent events: ${context.recentEvents.join('; ')}\n${context.currentObjective ? `Objective: ${context.currentObjective}` : ''}\n\nBased on your personality, motivations, and the current situation, what do you do?\nChoose ONE action:\n- dialogue: Speak to someone nearby\n- combat: Attack or defend\n- trade: Offer to trade items\n- quest: Offer a quest or task\n- movement: Move to a different location\n- idle: Continue current activity\n\nRespond in this format:\nACTION: [action type]\nDESCRIPTION: [brief description of what you do]\nTARGET: [who or what you're targeting, if applicable]`;
 
     try {
-      const history = this.buildRecentHistory(5);
-      const response = await this.conversationChain.invoke({
-        history,
-        input: prompt,
-      });
-
+      const response = await this.queryLLM(prompt, 5);
       return this.parseActionResponse(response);
     } catch (error) {
       console.error(`[NPC Agent ${this.name}] Decision error:`, error);
@@ -191,13 +178,7 @@ TARGET: [who or what you're targeting, if applicable]`;
     const prompt = `Something happens: ${event}\n\nContext: ${context}\n\nHow do you react? What do you say or do?`;
 
     try {
-      const history = this.buildRecentHistory(3);
-      const response = await this.conversationChain.invoke({
-        history,
-        input: prompt,
-      });
-
-      return response;
+      return await this.queryLLM(prompt, 3);
     } catch (error) {
       console.error(`[NPC Agent ${this.name}] Reaction error:`, error);
       return `${this.name} looks surprised.`;
@@ -215,22 +196,10 @@ TARGET: [who or what you're targeting, if applicable]`;
   ): Promise<NPCAction> {
     const hpPercent = (currentHP / maxHP) * 100;
 
-    const prompt = `You are in combat!
-Your HP: ${currentHP}/${maxHP} (${hpPercent.toFixed(0)}%)
-Enemies: ${targets.join(', ')}
-Allies: ${allies.join(', ')}
-
-What is your combat strategy? Consider your personality and the situation.
-Choose: attack [target], defend, flee, or use special ability.
-
-Respond with your action and reasoning.`;
+    const prompt = `You are in combat!\nYour HP: ${currentHP}/${maxHP} (${hpPercent.toFixed(0)}%)\nEnemies: ${targets.join(', ')}\nAllies: ${allies.join(', ')}\n\nWhat is your combat strategy? Consider your personality and the situation.\nChoose: attack [target], defend, flee, or use special ability.\n\nRespond with your action and reasoning.`;
 
     try {
-      const response = await this.conversationChain.invoke({
-        history: [],
-        input: prompt,
-      });
-
+      const response = await this.queryLLM(prompt, 0, { historyOverride: [] });
       return this.parseCombatAction(response, targets);
     } catch (error) {
       console.error(`[NPC Agent ${this.name}] Combat decision error:`, error);
@@ -288,7 +257,6 @@ Respond with your action and reasoning.`;
       context,
     });
 
-    // Keep only last 50 interactions
     if (this.memory.interactions.length > 50) {
       this.memory.interactions = this.memory.interactions.slice(-50);
     }
@@ -299,37 +267,46 @@ Respond with your action and reasoning.`;
   /**
    * Build conversation history for the agent
    */
-  private buildConversationHistory(): BaseMessage[] {
-    const recent = this.memory.interactions.slice(-10);
-    const history: BaseMessage[] = [];
-
-    for (const interaction of recent) {
-      if (interaction.speaker === this.name) {
-        history.push(new AIMessage(interaction.message));
-      } else {
-        history.push(
-          new HumanMessage(`${interaction.speaker}: ${interaction.message}`)
-        );
-      }
-    }
-
-    return history;
+  private buildConversationMessages(limit: number): MessageParam[] {
+    const recent = this.memory.interactions.slice(-limit);
+    return recent.map((interaction) => {
+      const role: MessageParam['role'] =
+        interaction.speaker === this.name ? 'assistant' : 'user';
+      const context = interaction.context
+        ? `\nContext: ${interaction.context}`
+        : '';
+      return {
+        role,
+        content: `${interaction.speaker}: ${interaction.message}${context}`,
+      };
+    });
   }
 
   /**
-   * Build recent history
+   * Query the text provider with persona + history
    */
-  private buildRecentHistory(count: number): BaseMessage[] {
-    const recent = this.memory.interactions.slice(-count);
-    return recent.map((interaction) => {
-      if (interaction.speaker === this.name) {
-        return new AIMessage(interaction.message);
-      } else {
-        return new HumanMessage(
-          `${interaction.speaker}: ${interaction.message}`
-        );
-      }
+  private async queryLLM(
+    prompt: string,
+    historyLimit: number,
+    options?: { temperature?: number; maxTokens?: number; historyOverride?: MessageParam[] }
+  ): Promise<string> {
+    const history = options?.historyOverride ?? this.buildConversationMessages(historyLimit);
+
+    const response = await this.provider.generateText({
+      system: this.systemPrompt,
+      messages: [
+        ...history,
+        {
+          role: 'user' as const,
+          content: prompt,
+        },
+      ],
+      temperature: options?.temperature ?? 0.9,
+      maxTokens: options?.maxTokens ?? 200,
     });
+
+    const text = response.content.trim();
+    return text || '...';
   }
 
   /**
@@ -373,7 +350,6 @@ Respond with your action and reasoning.`;
       };
     }
 
-    // Default: attack
     const target = targets.find((t) => lowerResponse.includes(t.toLowerCase())) || targets[0];
 
     return {
@@ -397,36 +373,5 @@ Respond with your action and reasoning.`;
     ];
 
     return fallbacks[Math.floor(Math.random() * fallbacks.length)];
-  }
-
-  /**
-   * Get NPC info
-   */
-  getInfo() {
-    return {
-      id: this.id,
-      name: this.name,
-      persona: this.persona,
-      memory: this.memory,
-    };
-  }
-
-  /**
-   * Save agent state
-   */
-  saveState() {
-    return {
-      id: this.id,
-      name: this.name,
-      persona: this.persona,
-      memory: this.memory,
-    };
-  }
-
-  /**
-   * Load agent state
-   */
-  loadState(state: any): void {
-    this.memory = state.memory;
   }
 }

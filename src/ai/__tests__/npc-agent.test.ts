@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest';
+import { NPCAgent } from '../npc-agent';
+import { createSingleResponseProvider } from '../providers/test-provider';
+import { generatePersona } from '../npc-personas';
 
 describe('NPCAgent', () => {
   describe('initialization', () => {
-    it.todo('creates agent with id, name, and persona');
+    it('creates agent with id, name, and persona', () => {
+      const provider = createSingleResponseProvider('Test response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      expect(agent.getId()).toBe('npc-1');
+      expect(agent.getName()).toBe('Garrick');
+      expect(agent.getPersona()).toEqual(persona);
+    });
     it.todo('accepts text provider in constructor');
     it.todo('initializes empty conversation history');
     it.todo('builds system prompt from persona');
@@ -48,6 +60,9 @@ describe('NPCAgent', () => {
     it.todo('handles very long player message');
     it.todo('handles special characters in message');
     it.todo('recovers from provider errors');
+    it.todo('retries before returning fallback on empty response');
+    it.todo('dialogue includes system prompt with persona information');
+    it.todo('multiple sequential dialogues accumulate in history');
   });
 
   describe('performance', () => {

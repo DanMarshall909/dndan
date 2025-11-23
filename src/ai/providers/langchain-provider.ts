@@ -28,10 +28,17 @@ export class LangChainProvider implements ITextProvider {
   ): Promise<TextGenerationResponse> {
     const messages = this.convertMessages(request.system, request.messages);
 
-    const result = await this.model.invoke(messages, {
-      temperature: request.temperature,
-      maxTokens: request.maxTokens,
-    });
+    // Runtime options like temperature and maxTokens need to be passed as any
+    // since different LangChain models have different call options types
+    const options: Record<string, unknown> = {};
+    if (request.temperature !== undefined) {
+      options.temperature = request.temperature;
+    }
+    if (request.maxTokens !== undefined) {
+      options.maxTokens = request.maxTokens;
+    }
+
+    const result = await this.model.invoke(messages, options);
 
     const content = typeof result.content === 'string'
       ? result.content

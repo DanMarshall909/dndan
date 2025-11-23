@@ -12,6 +12,7 @@ import {
 } from './npc-personas';
 import { Alignment } from '../game/types';
 import { Character } from '../game/types';
+import { ITextProvider } from './providers/types';
 
 export interface ManagedNPC {
   id: string;
@@ -31,13 +32,13 @@ export interface ManagedNPC {
  */
 export class NPCManager {
   private npcs: Map<string, ManagedNPC>;
-  private apiKey?: string;
+  private provider: ITextProvider;
   private updateInterval: number;
   private lastUpdate: number;
 
-  constructor(apiKey?: string, updateInterval: number = 5000) {
+  constructor(provider: ITextProvider, updateInterval: number = 5000) {
     this.npcs = new Map();
-    this.apiKey = apiKey;
+    this.provider = provider;
     this.updateInterval = updateInterval;
     this.lastUpdate = Date.now();
   }
@@ -57,7 +58,7 @@ export class NPCManager {
     const persona = generatePersona(archetype, alignment);
 
     // Create AI agent
-    const agent = new NPCAgent(id, name, persona, this.apiKey);
+    const agent = new NPCAgent(id, name, persona, this.provider);
 
     // Create managed NPC
     const npc: ManagedNPC = {

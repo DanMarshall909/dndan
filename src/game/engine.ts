@@ -11,6 +11,7 @@ import { AIDungeonMaster } from '../ai/dm';
 import { NPCManager } from '../ai/npc-manager';
 import { SceneCache } from '../ai/cache';
 import { SceneGenerator, ImageGenerationConfig } from '../ai/scene-gen';
+import { createSingleResponseProvider } from '../ai/providers/test-provider';
 import { Renderer } from '../render/renderer';
 import { GameUI } from '../render/ui';
 import { Minimap } from '../render/minimap';
@@ -62,7 +63,9 @@ export class GameEngine {
 
     // Initialize AI systems
     this.dm = new AIDungeonMaster(); // Uses backend proxy
-    this.npcManager = new NPCManager(undefined, 10000); // 10 second update interval
+    // TODO: Replace with proper LangChain provider configured for the target LLM
+    const npcProvider = createSingleResponseProvider('The NPC looks at you thoughtfully.');
+    this.npcManager = new NPCManager(npcProvider, 10000); // 10 second update interval
     this.sceneCache = new SceneCache(500);
     this.sceneGen = new SceneGenerator(imageConfig);
 

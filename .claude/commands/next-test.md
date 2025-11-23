@@ -2,7 +2,10 @@ Implement the next logical test in the AI provider abstraction test suite.
 
 Follow this process:
 
-1. **Identify the next test**: Look at the test files in `src/ai/__tests__/` and find the first `it.todo()` that should be implemented next. Start with foundational tests (TestTextProvider) before dependent tests (NPCAgent).
+1. **Identify the next test**:
+   - First, search for `// NEXT:` comments in test files in `src/ai/__tests__/`. These markers contain instructions for what to implement next.
+   - If no `// NEXT:` marker is found, look for the first `it.todo()` that should be implemented next.
+   - Start with foundational tests before dependent tests.
 
 2. **Implement ONE test only**:
    - Create any required interfaces/types in `src/ai/providers/types.ts`
@@ -42,3 +45,8 @@ Follow this process:
    - Test results (pass/fail count)
    - Final mutation score
    - Recommended edge case tests to add
+
+9. **Ask user**: Present options for what to do next:
+   - Implement the next test
+   - Commit changes
+   - Something else

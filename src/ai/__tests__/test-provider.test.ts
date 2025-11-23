@@ -1,11 +1,72 @@
 import { describe, it, expect } from 'vitest';
+import { TestTextProvider, NO_RESPONSES_ERROR } from '../providers/test-text-provider';
 
 describe('TestTextProvider', () => {
   describe('canned responses', () => {
-    it.todo('returns configured canned response');
-    it.todo('returns different responses for sequential calls');
-    it.todo('cycles through responses when exhausted');
+    it('returns configured canned response', async () => {
+      const provider = new TestTextProvider({
+        responses: [{ content: 'Hello, adventurer!' }],
+      });
+
+      const result = await provider.generateText({
+        messages: [{ role: 'user', content: 'Hello' }],
+      });
+
+      expect(result.content).toBe('Hello, adventurer!');
+    });
+
+    it('returns different responses for sequential calls', async () => {
+      const provider = new TestTextProvider({
+        responses: [
+          { content: 'First response' },
+          { content: 'Second response' },
+        ],
+      });
+
+      const first = await provider.generateText({
+        messages: [{ role: 'user', content: 'Hello' }],
+      });
+      const second = await provider.generateText({
+        messages: [{ role: 'user', content: 'Hello again' }],
+      });
+
+      expect(first.content).toBe('First response');
+      expect(second.content).toBe('Second response');
+    });
+
+    it('cycles through responses when exhausted', async () => {
+      const provider = new TestTextProvider({
+        responses: [
+          { content: 'Only response' },
+        ],
+      });
+
+      const first = await provider.generateText({
+        messages: [{ role: 'user', content: 'Call 1' }],
+      });
+      const second = await provider.generateText({
+        messages: [{ role: 'user', content: 'Call 2' }],
+      });
+
+      expect(first.content).toBe('Only response');
+      expect(second.content).toBe('Only response');
+    });
+
+    it('throws error when no responses configured', async () => {
+      const provider = new TestTextProvider();
+
+      await expect(
+        provider.generateText({
+          messages: [{ role: 'user', content: 'Hello' }],
+        })
+      ).rejects.toThrow(NO_RESPONSES_ERROR);
+
+      expect(NO_RESPONSES_ERROR.length).toBeGreaterThan(0);
+    });
+
     it.todo('supports response based on input pattern');
+    it.todo('handles multiline response content');
+    it.todo('can be used as drop-in replacement for real provider');
   });
 
   describe('request capture', () => {

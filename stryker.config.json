@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker/master/packages/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "reporters": ["html", "clear-text", "progress"],
+  "testRunner": "vitest",
+  "mutate": [
+    "src/ai/providers/**/*.ts",
+    "!src/ai/**/*.test.ts"
+  ],
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "concurrency": 4,
+  "timeoutMS": 10000
+}

@@ -134,6 +134,7 @@ ANTHROPIC_API_KEY=your_claude_api_key
 SD_API_KEY=your_stable_diffusion_key
 SD_API_URL=https://api.stability.ai/v1/generation
 ```
+The backend uses Vite's `loadEnv` helper to automatically load `.env` when `npm run server` runs (without overriding vars you've already exported), so provider flags like `LLM_PROVIDER=ollama` are picked up without extra CLI wrappers.
 
 3. **Run development server**:
 ```bash

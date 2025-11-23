@@ -5,6 +5,7 @@
 import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
+import { loadEnv } from 'vite';
 
 const app = express();
 const PORT = 3001;
@@ -16,51 +17,131 @@ app.use(express.json({ limit: '10mb' })); // Increase limit for image data
 // CONFIGURATION VALIDATION
 // ============================================================================
 
+type LLMProvider = 'anthropic' | 'openrouter' | 'ollama';
+
 interface ServerConfig {
-  anthropicApiKey: string;
+  llmProvider: LLMProvider;
+  anthropicApiKey?: string;
+  anthropicModel: string;
+  openrouterApiKey?: string;
+  openrouterModel?: string;
+  openrouterBaseUrl?: string;
+  openrouterSiteUrl?: string;
+  openrouterSiteName?: string;
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
   imageProvider: string;
   openaiApiKey?: string;
   replicateApiKey?: string;
   stabilityApiKey?: string;
 }
 
+type MessageRole = 'user' | 'assistant' | 'system';
+
+interface MessageParam {
+  role: MessageRole;
+  content: string;
+}
+
+interface LLMRequestPayload {
+  messages: MessageParam[];
+  system?: string;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+function hydrateEnvFromVite() {
+  const mode = process.env.NODE_ENV || 'development';
+  const env = loadEnv(mode, process.cwd(), '');
+
+  Object.entries(env).forEach(([key, value]) => {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  });
+
+  console.log(`[Server] Environment hydrated via Vite loadEnv (mode: ${mode})`);
+}
+
+hydrateEnvFromVite();
+
 function validateConfiguration(): ServerConfig {
   console.log('\n=== D&D AN Server Configuration ===\n');
 
-  // Required: Anthropic API Key
-  const anthropicApiKey = process.env.VITE_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '';
+  const providerEnv =
+    (process.env.LLM_PROVIDER || process.env.VITE_LLM_PROVIDER || 'anthropic').toLowerCase();
 
-  if (!anthropicApiKey) {
-    console.error('❌ ERROR: Anthropic API key is REQUIRED but not found!');
-    console.error('\nTo fix this:');
-    console.error('1. Get an API key from: https://console.anthropic.com/');
-    console.error('2. Add to your environment:');
-    console.error('   export VITE_ANTHROPIC_API_KEY=your_key_here');
-    console.error('   OR');
-    console.error('   export ANTHROPIC_API_KEY=your_key_here');
-    console.error('\nThe AI Dungeon Master and NPC agents will NOT work without this!\n');
-    process.exit(1);
-  }
+  const llmProvider: LLMProvider =
+    providerEnv === 'openrouter' || providerEnv === 'ollama' ? (providerEnv as LLMProvider) : 'anthropic';
 
-  console.log('✅ Anthropic API Key: Found');
-
-  // Optional: Image Generation
-  const imageProvider = process.env.VITE_IMAGE_PROVIDER || 'placeholder';
-  console.log(`📸 Image Provider: ${imageProvider}`);
+  console.log(`?o. LLM Provider: ${llmProvider}`);
 
   const config: ServerConfig = {
-    anthropicApiKey,
-    imageProvider,
+    llmProvider,
+    anthropicModel: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+    imageProvider: process.env.VITE_IMAGE_PROVIDER || 'placeholder',
   };
 
-  if (imageProvider !== 'placeholder') {
-    switch (imageProvider) {
+  switch (llmProvider) {
+    case 'anthropic': {
+      const anthropicApiKey = process.env.ANTHROPIC_API_KEY || '';
+      if (!anthropicApiKey) {
+        console.error('??O ERROR: Anthropic API key is REQUIRED but not found!');
+        console.error('\nTo fix this:');
+        console.error('1. Get an API key from: https://console.anthropic.com/');
+        console.error('2. Add to your environment:');
+        console.error('   export ANTHROPIC_API_KEY=your_key_here');
+        console.error('\nSet LLM_PROVIDER=openrouter or ollama if you are not using Anthropic.\n');
+        process.exit(1);
+      }
+
+      config.anthropicApiKey = anthropicApiKey;
+      console.log('?o. Anthropic API Key: Found');
+      console.log(`?o. Anthropic Model: ${config.anthropicModel}`);
+      break;
+    }
+
+    case 'openrouter': {
+      const openrouterApiKey = process.env.OPENROUTER_API_KEY || '';
+      if (!openrouterApiKey) {
+        console.error('??O ERROR: OpenRouter API key is REQUIRED but not found!');
+        console.error('\nTo fix this:');
+        console.error('1. Get an API key from: https://openrouter.ai/');
+        console.error('2. Add to your environment:');
+        console.error('   export OPENROUTER_API_KEY=your_key_here');
+        console.error('\nSet LLM_PROVIDER=anthropic if you are not using OpenRouter.\n');
+        process.exit(1);
+      }
+
+      config.openrouterApiKey = openrouterApiKey;
+      config.openrouterModel = process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free';
+      config.openrouterBaseUrl = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+      config.openrouterSiteUrl = process.env.OPENROUTER_SITE_URL;
+      config.openrouterSiteName = process.env.OPENROUTER_SITE_NAME;
+      console.log('?o. OpenRouter API Key: Found');
+      console.log(`?o. OpenRouter Model: ${config.openrouterModel}`);
+      break;
+    }
+
+    case 'ollama': {
+      config.ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+      config.ollamaModel = process.env.OLLAMA_MODEL || 'llama3';
+      console.log(`?o. Ollama Endpoint: ${config.ollamaBaseUrl}`);
+      console.log(`?o. Ollama Model: ${config.ollamaModel}`);
+      break;
+    }
+  }
+
+  console.log(`?Y"? Image Provider: ${config.imageProvider}`);
+
+  if (config.imageProvider !== 'placeholder') {
+    switch (config.imageProvider) {
       case 'openai':
         config.openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
         if (config.openaiApiKey) {
-          console.log('✅ OpenAI API Key: Found');
+          console.log('?o. OpenAI API Key: Found');
         } else {
-          console.warn('⚠️  WARNING: OpenAI provider selected but API key not found!');
+          console.warn('?s????  WARNING: OpenAI provider selected but API key not found!');
           console.warn('   Set OPENAI_API_KEY or VITE_OPENAI_API_KEY');
           console.warn('   Falling back to placeholder mode');
           config.imageProvider = 'placeholder';
@@ -70,9 +151,9 @@ function validateConfiguration(): ServerConfig {
       case 'replicate':
         config.replicateApiKey = process.env.REPLICATE_API_KEY || process.env.VITE_REPLICATE_API_KEY;
         if (config.replicateApiKey) {
-          console.log('✅ Replicate API Key: Found');
+          console.log('?o. Replicate API Key: Found');
         } else {
-          console.warn('⚠️  WARNING: Replicate provider selected but API key not found!');
+          console.warn('?s????  WARNING: Replicate provider selected but API key not found!');
           console.warn('   Set REPLICATE_API_KEY or VITE_REPLICATE_API_KEY');
           console.warn('   Falling back to placeholder mode');
           config.imageProvider = 'placeholder';
@@ -82,9 +163,9 @@ function validateConfiguration(): ServerConfig {
       case 'stability':
         config.stabilityApiKey = process.env.STABILITY_API_KEY || process.env.VITE_STABILITY_API_KEY;
         if (config.stabilityApiKey) {
-          console.log('✅ Stability AI API Key: Found');
+          console.log('?o. Stability AI API Key: Found');
         } else {
-          console.warn('⚠️  WARNING: Stability provider selected but API key not found!');
+          console.warn('?s????  WARNING: Stability provider selected but API key not found!');
           console.warn('   Set STABILITY_API_KEY or VITE_STABILITY_API_KEY');
           console.warn('   Falling back to placeholder mode');
           config.imageProvider = 'placeholder';
@@ -92,7 +173,7 @@ function validateConfiguration(): ServerConfig {
         break;
 
       default:
-        console.warn(`⚠️  WARNING: Unknown image provider '${imageProvider}'`);
+        console.warn(`?s????  WARNING: Unknown image provider '${config.imageProvider}'`);
         console.warn('   Valid options: placeholder, openai, replicate, stability');
         console.warn('   Falling back to placeholder mode');
         config.imageProvider = 'placeholder';
@@ -102,42 +183,181 @@ function validateConfiguration(): ServerConfig {
   console.log('\n=== Configuration Complete ===\n');
 
   return config;
-}
-
-// Validate configuration on startup
+}// Validate configuration on startup
 const serverConfig = validateConfiguration();
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: serverConfig.anthropicApiKey,
-});
+// Initialize Anthropic client when required
+const anthropicClient =
+  serverConfig.llmProvider === 'anthropic' && serverConfig.anthropicApiKey
+    ? new Anthropic({
+        apiKey: serverConfig.anthropicApiKey,
+      })
+    : null;
+
+function sanitizeMessages(messages: MessageParam[] | undefined): MessageParam[] {
+  if (!Array.isArray(messages)) {
+    return [];
+  }
+
+  return messages
+    .map((message) => {
+      if (!message || typeof message.content !== 'string') {
+        return null;
+      }
+
+      const role: MessageRole = message.role === 'assistant' ? 'assistant' : 'user';
+
+      const content = message.content.trim();
+      if (!content) {
+        return null;
+      }
+
+      return { role, content };
+    })
+    .filter((message): message is MessageParam => Boolean(message));
+}
+
+function prependSystemMessage(system: string | undefined, messages: MessageParam[]): MessageParam[] {
+  const sanitized = [...messages];
+  if (system) {
+    sanitized.unshift({
+      role: 'system',
+      content: system,
+    });
+  }
+  return sanitized;
+}
+
+async function runLLMRequest(payload: LLMRequestPayload): Promise<string> {
+  const messages = sanitizeMessages(payload.messages);
+  const temperature = typeof payload.temperature === 'number' ? payload.temperature : 0.8;
+  const maxTokens = typeof payload.max_tokens === 'number' ? payload.max_tokens : 300;
+
+  switch (serverConfig.llmProvider) {
+    case 'anthropic': {
+      if (!anthropicClient) {
+        throw new Error('Anthropic client not initialized');
+      }
+
+      const response = await anthropicClient.messages.create({
+        model: serverConfig.anthropicModel,
+        max_tokens: maxTokens,
+        temperature,
+        system: payload.system || '',
+        messages,
+      });
+
+      const content = response.content?.[0];
+      if (content?.type === 'text' && content.text) {
+        return content.text;
+      }
+
+      return 'The DM considers the situation...';
+    }
+
+    case 'openrouter': {
+      const apiKey = serverConfig.openrouterApiKey;
+      if (!apiKey || !serverConfig.openrouterModel) {
+        throw new Error('OpenRouter is not configured');
+      }
+
+      const baseUrl = (serverConfig.openrouterBaseUrl || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          ...(serverConfig.openrouterSiteUrl ? { 'HTTP-Referer': serverConfig.openrouterSiteUrl } : {}),
+          ...(serverConfig.openrouterSiteName ? { 'X-Title': serverConfig.openrouterSiteName } : {}),
+        },
+        body: JSON.stringify({
+          model: serverConfig.openrouterModel,
+          messages: prependSystemMessage(payload.system, messages),
+          temperature,
+          max_tokens: maxTokens,
+        }),
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`OpenRouter error: ${response.status} ${details}`);
+      }
+
+      const data = await response.json();
+      const text =
+        data?.choices?.[0]?.message?.content?.trim() ||
+        data?.choices?.[0]?.message?.content ||
+        data?.choices?.[0]?.content?.[0]?.text?.trim();
+
+      if (text) {
+        return text;
+      }
+
+      throw new Error('OpenRouter response missing content');
+    }
+
+    case 'ollama': {
+      const baseUrl = (serverConfig.ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
+      const response = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: serverConfig.ollamaModel || 'llama3',
+          messages: prependSystemMessage(payload.system, messages),
+          stream: false,
+          options: {
+            temperature,
+            num_predict: maxTokens,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(`Ollama error: ${response.status} ${details}`);
+      }
+
+      const data = await response.json();
+      const text = data?.message?.content?.trim() || data?.response?.trim();
+      if (text) {
+        return text;
+      }
+
+      throw new Error('Ollama response missing content');
+    }
+
+    default:
+      throw new Error(`Unsupported LLM provider: ${serverConfig.llmProvider}`);
+  }
+}
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Claude AI proxy endpoint
+// LLM proxy endpoint (DM + NPC)
 app.post('/api/claude', async (req, res) => {
   try {
-    const { messages, system, temperature, max_tokens } = req.body;
+    const { messages = [], system = '', temperature, max_tokens } = req.body || {};
 
-    console.log('[Server] Claude request:', { messageCount: messages?.length });
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: max_tokens || 300,
-      temperature: temperature || 0.8,
-      system: system || '',
-      messages: messages || [],
+    console.log('[Server] LLM request:', {
+      provider: serverConfig.llmProvider,
+      messageCount: Array.isArray(messages) ? messages.length : 0,
     });
 
-    const content = response.content[0];
-    const narrative = content.type === 'text' ? content.text : 'The DM considers the situation...';
+    const narrative = await runLLMRequest({
+      messages,
+      system,
+      temperature,
+      max_tokens,
+    });
 
     res.json({ narrative });
   } catch (error) {
-    console.error('[Server] Claude error:', error);
+    console.error('[Server] LLM error:', error);
     res.status(500).json({ error: 'AI DM request failed', narrative: 'The ancient magic falters...' });
   }
 });
@@ -365,3 +585,4 @@ app.listen(PORT, () => {
   console.log(`[Server] D&D AN backend running on port ${PORT}`);
   console.log(`[Server] Health check: http://localhost:${PORT}/api/health`);
 });
+

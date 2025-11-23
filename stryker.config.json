@@ -4,11 +4,12 @@
   "reporters": ["html", "clear-text", "progress"],
   "testRunner": "vitest",
   "mutate": [
-    "src/ai/providers/**/*.ts",
-    "!src/ai/**/*.test.ts"
+    "src/ai/providers/langchain-provider.ts",
+    "src/ai/providers/test-provider.ts"
   ],
   "vitest": {
-    "configFile": "vitest.config.ts"
+    "configFile": "vitest.config.ts",
+    "related": false
   },
   "concurrency": 4,
   "timeoutMS": 10000

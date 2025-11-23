@@ -78,32 +78,39 @@ describe('OpenRouterProvider', () => {
   });
 });
 
-describe('OllamaProvider', () => {
-  describe('initialization', () => {
-    it.todo('creates provider with local endpoint');
-    it.todo('uses default localhost when not specified');
-    it.todo('allows model selection');
+describe('LangChain Provider Usage', () => {
+  // LangChainProvider tests are in langchain-provider.test.ts
+  // These are placeholder examples showing how to create providers
+
+  describe('Ollama via LangChain', () => {
+    it.todo('creates Ollama provider with ChatOllama');
+    it.todo('supports custom model selection');
   });
 
-  describe('model selection', () => {
-    it.todo('supports llama models');
-    it.todo('supports mistral models');
-    it.todo('supports custom models');
+  describe('Anthropic via LangChain', () => {
+    it.todo('creates Anthropic provider with ChatAnthropic');
+    it.todo('supports Claude model selection');
   });
 
-  describe('request formatting', () => {
-    it.todo('formats request for Ollama API');
-    it.todo('includes model name');
+  describe('OpenAI via LangChain', () => {
+    it.todo('creates OpenAI provider with ChatOpenAI');
+    it.todo('supports GPT model selection');
+  });
+});
+
+describe('Server Integration', () => {
+  // NEXT: Replace direct API calls in server/index.ts with LangChainProvider
+
+  describe('provider factory', () => {
+    it.todo('creates Ollama provider from server config');
+    it.todo('creates Anthropic provider from server config');
+    it.todo('creates OpenRouter provider from server config');
   });
 
-  describe('response parsing', () => {
-    it.todo('extracts text from Ollama response');
-    it.todo('handles streaming responses');
-  });
-
-  describe('local server handling', () => {
-    it.todo('detects when Ollama server is not running');
-    it.todo('provides helpful error for connection issues');
+  describe('server uses ITextProvider', () => {
+    it.todo('injects provider into request handler');
+    it.todo('generates DM narration using provider');
+    it.todo('generates NPC responses using provider');
   });
 });
 

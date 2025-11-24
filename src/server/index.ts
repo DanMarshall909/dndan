@@ -6,6 +6,9 @@ import express from 'express';
 import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import { loadEnv } from 'vite';
+import { ChatOllama } from '@langchain/ollama';
+import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
 
 hydrateEnvFromVite();
 
@@ -194,6 +197,15 @@ const anthropicClient =
       })
     : null;
 
+// Initialize Ollama model using LangChain
+const ollamaModel =
+  serverConfig.llmProvider === 'ollama'
+    ? new ChatOllama({
+        baseUrl: serverConfig.ollamaBaseUrl ?? 'http://localhost:11434',
+        model: serverConfig.ollamaModel ?? 'llama3',
+      })
+    : null;
+
 function sanitizeMessages(messages: MessageParam[] | undefined): MessageParam[] {
   if (!Array.isArray(messages)) {
     return [];
@@ -297,32 +309,34 @@ async function runLLMRequest(payload: LLMRequestPayload): Promise<string> {
     }
 
     case 'ollama': {
-      const baseUrl = (serverConfig.ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '');
-      const response = await fetch(`${baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: serverConfig.ollamaModel || 'llama3',
-          messages: prependSystemMessage(payload.system, messages),
-          stream: false,
-          options: {
-            temperature,
-            num_predict: maxTokens,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const details = await response.text();
-        throw new Error(`Ollama error: ${response.status} ${details}`);
+      if (!ollamaModel) {
+        throw new Error('Ollama model not initialized');
       }
 
-      const data = await response.json();
-      const text = data?.message?.content?.trim() || data?.response?.trim();
+      // Convert messages to LangChain format
+      const langchainMessages: BaseMessage[] = [];
+      if (payload.system) {
+        langchainMessages.push(new SystemMessage(payload.system));
+      }
+      for (const msg of messages) {
+        if (msg.role === 'user') {
+          langchainMessages.push(new HumanMessage(msg.content));
+        } else if (msg.role === 'assistant') {
+          langchainMessages.push(new AIMessage(msg.content));
+        }
+      }
+
+      const result = await ollamaModel.invoke(langchainMessages, {
+        temperature,
+        maxTokens,
+      });
+
+      const text = typeof result.content === 'string'
+        ? result.content
+        : JSON.stringify(result.content);
+
       if (text) {
-        return text;
+        return text.trim();
       }
 
       throw new Error('Ollama response missing content');

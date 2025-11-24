@@ -9,11 +9,11 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build TypeScript
+# Build TypeScript (keeps type errors from sneaking in)
 RUN npm run build
 
-# Expose ports for Vite dev server and Express server
-EXPOSE 5173 3000
+# Expose ports for Vite dev server and Express proxy
+EXPOSE 3000 3001
 
-# Default command runs the server
-CMD ["npm", "run", "server"]
+# Default command runs both frontend + backend in dev mode
+CMD ["npm", "run", "start:docker"]

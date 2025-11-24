@@ -25,7 +25,7 @@ services:
     container_name: dndan-app
     ports:
       - "3000:3000"
-      - "5173:5173"
+      - "3001:3001"
     environment:
       - LLM_PROVIDER=ollama
       - OLLAMA_BASE_URL=http://ollama:11434

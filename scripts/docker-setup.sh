@@ -18,6 +18,7 @@ docker compose up -d app
 echo ""
 echo "Setup complete!"
 echo "  - Ollama API: http://localhost:11434"
-echo "  - App server: http://localhost:3000"
+echo "  - Frontend:   http://localhost:3000"
+echo "  - API proxy:  http://localhost:3001"
 echo ""
 echo "View logs with: docker compose logs -f"

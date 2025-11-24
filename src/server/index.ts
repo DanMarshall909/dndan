@@ -7,8 +7,10 @@ import cors from 'cors';
 import Anthropic from '@anthropic-ai/sdk';
 import { loadEnv } from 'vite';
 
+hydrateEnvFromVite();
+
 const app = express();
-const PORT = 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Increase limit for image data
@@ -63,8 +65,6 @@ function hydrateEnvFromVite() {
   console.log(`[Server] Environment hydrated via Vite loadEnv (mode: ${mode})`);
 }
 
-hydrateEnvFromVite();
-
 function validateConfiguration(): ServerConfig {
   console.log('\n=== D&D AN Server Configuration ===\n');
 
@@ -74,7 +74,7 @@ function validateConfiguration(): ServerConfig {
   const llmProvider: LLMProvider =
     providerEnv === 'openrouter' || providerEnv === 'ollama' ? (providerEnv as LLMProvider) : 'anthropic';
 
-  console.log(`?o. LLM Provider: ${llmProvider}`);
+  console.log(`[config] LLM Provider: ${llmProvider}`);
 
   const config: ServerConfig = {
     llmProvider,
@@ -86,7 +86,7 @@ function validateConfiguration(): ServerConfig {
     case 'anthropic': {
       const anthropicApiKey = process.env.ANTHROPIC_API_KEY || '';
       if (!anthropicApiKey) {
-        console.error('??O ERROR: Anthropic API key is REQUIRED but not found!');
+        console.error('[config] ERROR: Anthropic API key is REQUIRED but not found!');
         console.error('\nTo fix this:');
         console.error('1. Get an API key from: https://console.anthropic.com/');
         console.error('2. Add to your environment:');
@@ -96,15 +96,15 @@ function validateConfiguration(): ServerConfig {
       }
 
       config.anthropicApiKey = anthropicApiKey;
-      console.log('?o. Anthropic API Key: Found');
-      console.log(`?o. Anthropic Model: ${config.anthropicModel}`);
+      console.log('[config] Anthropic API Key: Found');
+      console.log(`[config] Anthropic Model: ${config.anthropicModel}`);
       break;
     }
 
     case 'openrouter': {
       const openrouterApiKey = process.env.OPENROUTER_API_KEY || '';
       if (!openrouterApiKey) {
-        console.error('??O ERROR: OpenRouter API key is REQUIRED but not found!');
+        console.error('[config] ERROR: OpenRouter API key is REQUIRED but not found!');
         console.error('\nTo fix this:');
         console.error('1. Get an API key from: https://openrouter.ai/');
         console.error('2. Add to your environment:');
@@ -118,30 +118,30 @@ function validateConfiguration(): ServerConfig {
       config.openrouterBaseUrl = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
       config.openrouterSiteUrl = process.env.OPENROUTER_SITE_URL;
       config.openrouterSiteName = process.env.OPENROUTER_SITE_NAME;
-      console.log('?o. OpenRouter API Key: Found');
-      console.log(`?o. OpenRouter Model: ${config.openrouterModel}`);
+      console.log('[config] OpenRouter API Key: Found');
+      console.log(`[config] OpenRouter Model: ${config.openrouterModel}`);
       break;
     }
 
     case 'ollama': {
       config.ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
       config.ollamaModel = process.env.OLLAMA_MODEL || 'llama3';
-      console.log(`?o. Ollama Endpoint: ${config.ollamaBaseUrl}`);
-      console.log(`?o. Ollama Model: ${config.ollamaModel}`);
+      console.log(`[config] Ollama Endpoint: ${config.ollamaBaseUrl}`);
+      console.log(`[config] Ollama Model: ${config.ollamaModel}`);
       break;
     }
   }
 
-  console.log(`?Y"? Image Provider: ${config.imageProvider}`);
+  console.log(`[config] Image Provider: ${config.imageProvider}`);
 
   if (config.imageProvider !== 'placeholder') {
     switch (config.imageProvider) {
       case 'openai':
         config.openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
         if (config.openaiApiKey) {
-          console.log('?o. OpenAI API Key: Found');
+          console.log('[config] OpenAI API Key: Found');
         } else {
-          console.warn('?s????  WARNING: OpenAI provider selected but API key not found!');
+          console.warn('[config] WARNING: OpenAI provider selected but API key not found!');
           console.warn('   Set OPENAI_API_KEY or VITE_OPENAI_API_KEY');
           console.warn('   Falling back to placeholder mode');
           config.imageProvider = 'placeholder';
@@ -151,9 +151,9 @@ function validateConfiguration(): ServerConfig {
       case 'replicate':
         config.replicateApiKey = process.env.REPLICATE_API_KEY || process.env.VITE_REPLICATE_API_KEY;
         if (config.replicateApiKey) {
-          console.log('?o. Replicate API Key: Found');
+          console.log('[config] Replicate API Key: Found');
         } else {
-          console.warn('?s????  WARNING: Replicate provider selected but API key not found!');
+          console.warn('[config] WARNING: Replicate provider selected but API key not found!');
           console.warn('   Set REPLICATE_API_KEY or VITE_REPLICATE_API_KEY');
           console.warn('   Falling back to placeholder mode');
           config.imageProvider = 'placeholder';
@@ -163,9 +163,9 @@ function validateConfiguration(): ServerConfig {
       case 'stability':
         config.stabilityApiKey = process.env.STABILITY_API_KEY || process.env.VITE_STABILITY_API_KEY;
         if (config.stabilityApiKey) {
-          console.log('?o. Stability AI API Key: Found');
+          console.log('[config] Stability AI API Key: Found');
         } else {
-          console.warn('?s????  WARNING: Stability provider selected but API key not found!');
+          console.warn('[config] WARNING: Stability provider selected but API key not found!');
           console.warn('   Set STABILITY_API_KEY or VITE_STABILITY_API_KEY');
           console.warn('   Falling back to placeholder mode');
           config.imageProvider = 'placeholder';
@@ -173,7 +173,7 @@ function validateConfiguration(): ServerConfig {
         break;
 
       default:
-        console.warn(`?s????  WARNING: Unknown image provider '${config.imageProvider}'`);
+        console.warn(`[config] WARNING: Unknown image provider '${config.imageProvider}'`);
         console.warn('   Valid options: placeholder, openai, replicate, stability');
         console.warn('   Falling back to placeholder mode');
         config.imageProvider = 'placeholder';
@@ -585,4 +585,3 @@ app.listen(PORT, () => {
   console.log(`[Server] D&D AN backend running on port ${PORT}`);
   console.log(`[Server] Health check: http://localhost:${PORT}/api/health`);
 });
-

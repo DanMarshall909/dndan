@@ -15,7 +15,7 @@ export interface SDGenerationParams {
   seed?: number;
 }
 
-export type ImageProvider = 'openai' | 'replicate' | 'stability' | 'placeholder';
+export type ImageProvider = 'openai' | 'replicate' | 'stability' | 'placeholder' | 'comfyui';
 
 export interface ImageGenerationConfig {
   provider: ImageProvider;

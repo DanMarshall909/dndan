@@ -176,9 +176,14 @@ function validateConfiguration(): ServerConfig {
         }
         break;
 
+      case 'comfyui':
+        console.log(`[config] Image provider: ComfyUI (local)`);
+        console.log(`[config] ComfyUI URL: ${process.env.COMFYUI_BASE_URL || 'http://localhost:8188'}`);
+        break;
+
       default:
         console.warn(`[config] WARNING: Unknown image provider '${config.imageProvider}'`);
-        console.warn('   Valid options: placeholder, openai, replicate, stability');
+        console.warn('   Valid options: placeholder, openai, replicate, stability, comfyui');
         console.warn('   Falling back to placeholder mode');
         config.imageProvider = 'placeholder';
     }

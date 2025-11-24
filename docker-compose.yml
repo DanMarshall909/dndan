@@ -12,13 +12,40 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              count: 1
               capabilities: [gpu]
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  comfyui:
+    image: ghcr.io/ai-dock/comfyui:latest
+    container_name: dndan-comfyui
+    ports:
+      - "8188:8188"
+    volumes:
+      - comfyui_models:/opt/ComfyUI/models
+      - comfyui_output:/opt/ComfyUI/output
+      - comfyui_input:/opt/ComfyUI/input
+    environment:
+      - DIRECT_ADDRESS=0.0.0.0
+      - WEB_ENABLE_AUTH=false
+    # GPU support - uses remaining GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   app:
     build: .
@@ -30,8 +57,12 @@ services:
       - LLM_PROVIDER=ollama
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3
+      - COMFYUI_BASE_URL=http://comfyui:8188
+      - IMAGE_GENERATION_ENABLED=true
     depends_on:
       ollama:
+        condition: service_healthy
+      comfyui:
         condition: service_healthy
     volumes:
       - .:/app
@@ -39,3 +70,6 @@ services:
 
 volumes:
   ollama_data:
+  comfyui_models:
+  comfyui_output:
+  comfyui_input:

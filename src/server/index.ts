@@ -9,6 +9,7 @@ import { loadEnv } from 'vite';
 import { ChatOllama } from '@langchain/ollama';
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
+import { createImageGenerator } from './image-generator';
 
 hydrateEnvFromVite();
 
@@ -385,6 +386,9 @@ app.post('/api/generate', async (req, res) => {
 
     // Route to appropriate provider
     switch (provider) {
+      case 'comfyui':
+        return await generateWithComfyUI(req, res, prompt, negativePrompt, width, height, steps);
+
       case 'openai':
         return await generateWithOpenAI(req, res, prompt, width, height);
 
@@ -412,6 +416,46 @@ app.post('/api/generate', async (req, res) => {
     res.status(500).json({ error: 'Generation failed' });
   }
 });
+
+/**
+ * Generate image using local ComfyUI (Stable Diffusion)
+ */
+async function generateWithComfyUI(req: any, res: any, prompt: string, negativePrompt: string, width: number, height: number, steps: number) {
+  const imageGenerator = createImageGenerator();
+
+  if (!await imageGenerator.isAvailable()) {
+    console.warn('[Server] ComfyUI not available');
+    return res.status(503).json({ error: 'ComfyUI service not available' });
+  }
+
+  try {
+    const enhancedPrompt = `${prompt}, pixel art, retro gaming, 16-bit style`;
+    const enhancedNegative = negativePrompt || 'blurry, realistic, 3d, modern, photo';
+
+    const result = await imageGenerator.generate(enhancedPrompt, enhancedNegative);
+
+    if (!result) {
+      throw new Error('No image generated');
+    }
+
+    // Get the image as base64
+    const base64 = await imageGenerator.getImageAsBase64(result.filename);
+
+    if (!base64) {
+      throw new Error('Failed to retrieve generated image');
+    }
+
+    res.json({
+      image: `data:image/png;base64,${base64}`,
+      prompt: enhancedPrompt,
+      provider: 'comfyui',
+      generated: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[Server] ComfyUI generation error:', error);
+    res.status(500).json({ error: 'ComfyUI generation failed' });
+  }
+}
 
 /**
  * Generate image using OpenAI DALL-E

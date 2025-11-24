@@ -1,4 +1,54 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createProviderFromConfig, ProviderConfig } from '../providers/provider-factory';
+
+// Store captured instances for verification
+const capturedOllamaInstances: Array<Record<string, unknown>> = [];
+
+// Mock LangChain modules to avoid real API calls
+vi.mock('@langchain/ollama', () => {
+  return {
+    ChatOllama: class MockChatOllama {
+      _config: Record<string, unknown>;
+      constructor(config: Record<string, unknown>) {
+        this._config = config;
+        capturedOllamaInstances.push(config);
+      }
+      invoke = vi.fn().mockResolvedValue({ content: 'mocked response' });
+      getName = () => `ollama/${this._config.model}`;
+    },
+  };
+});
+
+vi.mock('@langchain/anthropic', () => {
+  return {
+    ChatAnthropic: class MockChatAnthropic {
+      _config: Record<string, unknown>;
+      constructor(config: Record<string, unknown>) {
+        this._config = config;
+      }
+      invoke = vi.fn().mockResolvedValue({ content: 'mocked response' });
+      getName = () => `anthropic/${this._config.model}`;
+    },
+  };
+});
+
+vi.mock('@langchain/openai', () => {
+  return {
+    ChatOpenAI: class MockChatOpenAI {
+      _config: Record<string, unknown>;
+      constructor(config: Record<string, unknown>) {
+        this._config = config;
+      }
+      invoke = vi.fn().mockResolvedValue({ content: 'mocked response' });
+      getName = () => `openai/${this._config.model}`;
+    },
+  };
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  capturedOllamaInstances.length = 0;
+});
 
 describe('ITextProvider contract', () => {
   describe('generates text response with valid request', () => {
@@ -102,9 +152,57 @@ describe('Server Integration', () => {
   // NEXT: Replace direct API calls in server/index.ts with LangChainProvider
 
   describe('provider factory', () => {
-    it.todo('creates Ollama provider from server config');
+    it('creates Ollama provider from server config', async () => {
+      const config: ProviderConfig = {
+        llmProvider: 'ollama',
+        ollamaBaseUrl: 'http://localhost:11434',
+        ollamaModel: 'llama3',
+      };
+
+      const provider = createProviderFromConfig(config);
+
+      const result = await provider.generateText({
+        messages: [{ role: 'user', content: 'Hello' }],
+      });
+
+      expect(result.content).toBe('mocked response');
+      expect(result.model).toBe('ollama/llama3');
+    });
+
+    it('uses default values when Ollama config is not provided', async () => {
+      const config: ProviderConfig = {
+        llmProvider: 'ollama',
+      };
+
+      const provider = createProviderFromConfig(config);
+
+      const result = await provider.generateText({
+        messages: [{ role: 'user', content: 'Hello' }],
+      });
+
+      expect(result.content).toBe('mocked response');
+      expect(result.model).toBe('ollama/llama3');
+      expect(capturedOllamaInstances[0]).toEqual({
+        baseUrl: 'http://localhost:11434',
+        model: 'llama3',
+      });
+    });
+
     it.todo('creates Anthropic provider from server config');
     it.todo('creates OpenRouter provider from server config');
+
+    // Edge cases for Ollama provider
+    it.todo('uses custom model when ollamaModel is specified');
+    it.todo('uses custom baseUrl when ollamaBaseUrl is specified');
+
+    // Edge cases for Anthropic provider
+    it.todo('throws error when anthropic API key is missing');
+    it.todo('uses default model when anthropicModel not specified');
+
+    // Edge cases for OpenRouter provider
+    it.todo('throws error when openrouter API key is missing');
+    it.todo('uses default model when openrouterModel not specified');
+    it.todo('uses default baseUrl when openrouterBaseUrl not specified');
   });
 
   describe('server uses ITextProvider', () => {

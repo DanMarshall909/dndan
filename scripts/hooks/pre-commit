@@ -1,0 +1,34 @@
+#!/bin/bash
+# Pre-commit hook to ensure all text files use LF line endings
+
+# Get list of staged files (excluding deleted files and binaries)
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$staged_files" ]; then
+    exit 0
+fi
+
+# Check for CRLF line endings
+files_with_crlf=""
+for file in $staged_files; do
+    # Skip binary files
+    if file "$file" | grep -q "binary"; then
+        continue
+    fi
+
+    # Check for CRLF in staged content
+    if git show ":$file" 2>/dev/null | grep -q $'\r'; then
+        files_with_crlf="$files_with_crlf\n  $file"
+    fi
+done
+
+if [ -n "$files_with_crlf" ]; then
+    echo "ERROR: CRLF line endings detected in staged files:"
+    echo -e "$files_with_crlf"
+    echo ""
+    echo "Please convert to LF line endings before committing."
+    echo "You can fix this with: git add --renormalize ."
+    exit 1
+fi
+
+exit 0

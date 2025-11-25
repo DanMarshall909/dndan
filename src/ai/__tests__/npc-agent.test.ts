@@ -355,6 +355,12 @@ describe('NPCAgent', () => {
         expect(finalState.memory.interactions[2].message).toBe('Second message');
       });
     });
+
+    describe('loadState edge cases', () => {
+      it.todo('loadState_handles_missing_memory_object');
+      it.todo('loadState_handles_missing_lastUpdated');
+      it.todo('loadState_handles_missing_relationships');
+    });
   });
 
   describe('respects persona in responses', () => {
@@ -516,6 +522,39 @@ describe('NPCAgent', () => {
       const state = agent.saveState() as any;
       expect(state.memory.interactions.length).toBe(50);
     });
+  });
+
+  describe('updateRelationship', () => {
+    it.todo('updateRelationship_defaults_to_Neutral_for_unknown_character');
+    it.todo('updateRelationship_increases_relationship_level');
+    it.todo('updateRelationship_decreases_relationship_level');
+    it.todo('updateRelationship_clamps_at_Hostile');
+    it.todo('updateRelationship_clamps_at_Allied');
+    it.todo('updateRelationship_uses_all_relationship_levels');
+  });
+
+  describe('buildConversationMessages', () => {
+    it.todo('buildConversationMessages_formats_speaker_role_correctly');
+    it.todo('buildConversationMessages_includes_context_when_present');
+    it.todo('buildConversationMessages_formats_complete_message');
+    it.todo('buildConversationMessages_respects_limit_parameter');
+  });
+
+  describe('addFact', () => {
+    it.todo('addFact_prevents_duplicate_facts');
+  });
+
+  describe('addInteraction', () => {
+    it.todo('addInteraction_truncates_at_exactly_50_interactions');
+  });
+
+  describe('error handling', () => {
+    it.todo('processDialogue_logs_error_with_agent_name');
+  });
+
+  describe('getFallbackDialogue', () => {
+    it.todo('getFallbackDialogue_returns_non_empty_string');
+    it.todo('getFallbackDialogue_uses_valid_array_index');
   });
 });
 

@@ -375,8 +375,49 @@ describe('NPCAgent', () => {
         expect(response).toBeDefined();
         expect(typeof response).toBe('string');
       });
-      it.todo('loadState_handles_missing_lastUpdated');
-      it.todo('loadState_handles_missing_relationships');
+      it('loadState_handles_missing_lastUpdated', () => {
+        const provider = createSingleResponseProvider('Response');
+        const persona = generatePersona('Merchant', 'Lawful Good');
+        const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+        const before = Date.now();
+        const stateWithoutLastUpdated = {
+          id: 'npc-1',
+          name: 'Garrick',
+          memory: {
+            interactions: [{ timestamp: 123, speaker: 'Player', message: 'Hi', context: '' }],
+            facts: ['test fact'],
+            relationships: [],
+          },
+        };
+
+        agent.loadState(stateWithoutLastUpdated);
+        const after = Date.now();
+
+        const state = agent.saveState() as any;
+        expect(state.memory.lastUpdated).toBeGreaterThanOrEqual(before);
+        expect(state.memory.lastUpdated).toBeLessThanOrEqual(after);
+      });
+      it('loadState_handles_missing_relationships', () => {
+        const provider = createSingleResponseProvider('Response');
+        const persona = generatePersona('Merchant', 'Lawful Good');
+        const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+        const stateWithoutRelationships = {
+          id: 'npc-1',
+          name: 'Garrick',
+          memory: {
+            interactions: [],
+            facts: ['test fact'],
+            lastUpdated: 12345,
+          },
+        };
+
+        expect(() => agent.loadState(stateWithoutRelationships)).not.toThrow();
+
+        const state = agent.saveState() as any;
+        expect(state.memory.relationships).toEqual([]);
+      });
     });
   });
 
@@ -553,35 +594,225 @@ describe('NPCAgent', () => {
       const relationships = new Map(state.memory.relationships);
       expect(relationships.get('UnknownPlayer')).toBe('Friendly');
     });
-    it.todo('updateRelationship_increases_relationship_level');
-    it.todo('updateRelationship_decreases_relationship_level');
-    it.todo('updateRelationship_clamps_at_Hostile');
-    it.todo('updateRelationship_clamps_at_Allied');
-    it.todo('updateRelationship_uses_all_relationship_levels');
+    it('updateRelationship_increases_relationship_level', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.updateRelationship('Player', 0);
+      let state = agent.saveState() as any;
+      let relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Player')).toBe('Neutral');
+
+      agent.updateRelationship('Player', 1);
+      state = agent.saveState() as any;
+      relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Player')).toBe('Friendly');
+    });
+    it('updateRelationship_decreases_relationship_level', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.updateRelationship('Player', 0);
+      let state = agent.saveState() as any;
+      let relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Player')).toBe('Neutral');
+
+      agent.updateRelationship('Player', -1);
+      state = agent.saveState() as any;
+      relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Player')).toBe('Unfriendly');
+    });
+    it('updateRelationship_clamps_at_Hostile', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.updateRelationship('Enemy', -10);
+
+      const state = agent.saveState() as any;
+      const relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Enemy')).toBe('Hostile');
+    });
+    it('updateRelationship_clamps_at_Allied', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.updateRelationship('BestFriend', 10);
+
+      const state = agent.saveState() as any;
+      const relationships = new Map(state.memory.relationships);
+      expect(relationships.get('BestFriend')).toBe('Allied');
+    });
+    it('updateRelationship_uses_all_relationship_levels', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.updateRelationship('Person', -2);
+      let state = agent.saveState() as any;
+      let relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Person')).toBe('Hostile');
+
+      agent.updateRelationship('Person', 1);
+      state = agent.saveState() as any;
+      relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Person')).toBe('Unfriendly');
+
+      agent.updateRelationship('Person', 1);
+      state = agent.saveState() as any;
+      relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Person')).toBe('Neutral');
+
+      agent.updateRelationship('Person', 1);
+      state = agent.saveState() as any;
+      relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Person')).toBe('Friendly');
+
+      agent.updateRelationship('Person', 1);
+      state = agent.saveState() as any;
+      relationships = new Map(state.memory.relationships);
+      expect(relationships.get('Person')).toBe('Allied');
+    });
   });
 
   describe('buildConversationMessages', () => {
-    it.todo('buildConversationMessages_formats_speaker_role_correctly');
-    it.todo('buildConversationMessages_includes_context_when_present');
-    it.todo('buildConversationMessages_formats_complete_message');
-    it.todo('buildConversationMessages_respects_limit_parameter');
+    it('buildConversationMessages_formats_speaker_role_correctly', async () => {
+      const mockProvider: ITextProvider = {
+        generateText: vi.fn().mockResolvedValue({ content: 'Response' }),
+      };
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, mockProvider);
+
+      await agent.processDialogue('Player', 'First', 'context');
+      await agent.processDialogue('Player', 'Second', 'context');
+
+      const call = vi.mocked(mockProvider.generateText).mock.calls[1][0];
+      const playerMessage = call.messages.find(m => m.content.includes('Player: First'));
+      const npcMessage = call.messages.find(m => m.content.includes('Garrick: Response'));
+
+      expect(playerMessage?.role).toBe('user');
+      expect(npcMessage?.role).toBe('assistant');
+    });
+    it('buildConversationMessages_includes_context_when_present', async () => {
+      const mockProvider: ITextProvider = {
+        generateText: vi.fn().mockResolvedValue({ content: 'Response' }),
+      };
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, mockProvider);
+
+      await agent.processDialogue('Player', 'Hello', 'in the marketplace');
+
+      const call = vi.mocked(mockProvider.generateText).mock.calls[0][0];
+      const messageWithContext = call.messages.find(m => m.content.includes('Context: in the marketplace'));
+
+      expect(messageWithContext).toBeDefined();
+    });
+    it('buildConversationMessages_formats_complete_message', async () => {
+      const mockProvider: ITextProvider = {
+        generateText: vi.fn().mockResolvedValue({ content: 'Response' }),
+      };
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, mockProvider);
+
+      await agent.processDialogue('Player', 'Test message', 'test context');
+
+      const call = vi.mocked(mockProvider.generateText).mock.calls[0][0];
+      const message = call.messages.find(m => m.content.includes('Player: Test message'));
+
+      expect(message?.content).toContain('Player:');
+      expect(message?.content).toContain('Test message');
+      expect(message?.content).toContain('Context: test context');
+    });
+    it('buildConversationMessages_respects_limit_parameter', async () => {
+      const mockProvider: ITextProvider = {
+        generateText: vi.fn().mockResolvedValue({ content: 'Response' }),
+      };
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, mockProvider);
+
+      for (let i = 0; i < 10; i++) {
+        await agent.processDialogue('Player', `Message ${i}`, 'context');
+      }
+
+      const lastCall = vi.mocked(mockProvider.generateText).mock.calls[9][0];
+      const historyMessages = lastCall.messages.filter(m => m.content.includes('Player:') || m.content.includes('Garrick:'));
+
+      expect(historyMessages.length).toBeLessThanOrEqual(10);
+    });
   });
 
   describe('addFact', () => {
-    it.todo('addFact_prevents_duplicate_facts');
+    it('addFact_prevents_duplicate_facts', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.addFact('The sky is blue');
+      agent.addFact('The sky is blue');
+      agent.addFact('The grass is green');
+
+      const state = agent.saveState() as any;
+      expect(state.memory.facts).toEqual(['The sky is blue', 'The grass is green']);
+      expect(state.memory.facts.length).toBe(2);
+    });
   });
 
   describe('addInteraction', () => {
-    it.todo('addInteraction_truncates_at_exactly_50_interactions');
-  });
+    it('addInteraction_truncates_at_exactly_50_interactions', async () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
 
-  describe('error handling', () => {
-    it.todo('processDialogue_logs_error_with_agent_name');
+      for (let i = 0; i < 25; i++) {
+        await agent.processDialogue('Player', `Message ${i}`, 'context');
+      }
+
+      const stateBefore = agent.saveState() as any;
+      expect(stateBefore.memory.interactions.length).toBe(50);
+      const firstMessageBefore = stateBefore.memory.interactions[0].message;
+
+      await agent.processDialogue('Player', 'Next message', 'context');
+      const stateAfter = agent.saveState() as any;
+      expect(stateAfter.memory.interactions.length).toBe(50);
+      expect(stateAfter.memory.interactions[0].message).not.toBe(firstMessageBefore);
+    });
   });
 
   describe('getFallbackDialogue', () => {
-    it.todo('getFallbackDialogue_returns_non_empty_string');
-    it.todo('getFallbackDialogue_uses_valid_array_index');
+    it('getFallbackDialogue_returns_non_empty_string', async () => {
+      const errorProvider: ITextProvider = {
+        generateText: vi.fn().mockRejectedValue(new Error('Error')),
+      };
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, errorProvider);
+
+      const responses = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const response = await agent.processDialogue('Player', 'Hi', 'context');
+        responses.add(response);
+        expect(response.length).toBeGreaterThan(0);
+        expect(response).toContain('Garrick');
+      }
+
+      expect(responses.size).toBeGreaterThan(1);
+    });
+    it('getFallbackDialogue_uses_valid_array_index', async () => {
+      const errorProvider: ITextProvider = {
+        generateText: vi.fn().mockRejectedValue(new Error('Error')),
+      };
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, errorProvider);
+
+      for (let i = 0; i < 100; i++) {
+        const response = await agent.processDialogue('Player', 'Hi', 'context');
+        expect(response).toBeDefined();
+        expect(typeof response).toBe('string');
+        expect(response.length).toBeGreaterThan(0);
+      }
+    });
   });
 });
 

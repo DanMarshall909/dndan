@@ -23,13 +23,64 @@ export interface ImageGenerationConfig {
   apiKey: string;
 }
 
+/**
+ * Style consistency for session
+ */
+export interface SessionStyle {
+  artist: string;
+  palette: string;
+  technique: string;
+  era: string;
+}
+
 export class SceneGenerator {
   private config: ImageGenerationConfig;
   private backendUrl: string;
+  private sessionStyle: SessionStyle;
 
   constructor(config: ImageGenerationConfig, backendUrl: string = 'http://localhost:3001') {
     this.config = config;
     this.backendUrl = backendUrl;
+    this.sessionStyle = this.generateSessionStyle();
+  }
+
+  /**
+   * Generate a consistent style for the entire session
+   */
+  private generateSessionStyle(): SessionStyle {
+    const artists = [
+      'Larry Elmore',
+      'Keith Parkinson',
+      'Clyde Caldwell',
+      'Jeff Easley',
+      'Brom'
+    ];
+
+    const palettes = [
+      'warm earth tones with deep shadows',
+      'cool dungeon blues and grays with torch highlights',
+      'rich browns and golds with dramatic lighting'
+    ];
+
+    const techniques = [
+      'oil painting with detailed brushwork',
+      'pen and ink with watercolor washes',
+      'acrylic with bold shadows and highlights'
+    ];
+
+    return {
+      artist: artists[Math.floor(Math.random() * artists.length)],
+      palette: palettes[Math.floor(Math.random() * palettes.length)],
+      technique: techniques[Math.floor(Math.random() * techniques.length)],
+      era: '1980s-1990s TSR official D&D artwork'
+    };
+  }
+
+  /**
+   * Get current session style (for debugging/display)
+   */
+  getSessionStyle(): SessionStyle {
+    return this.sessionStyle;
   }
 
   /**
@@ -67,9 +118,24 @@ export class SceneGenerator {
 
     contextParts.push(
       ``,
-      `Create a detailed prompt for generating a 160x100 pixel art image in the style of classic SSI Gold Box D&D games (Pool of Radiance, etc.).`,
-      `The prompt should describe the scene from a top-down perspective, include visual details about the dungeon layout, lighting, and any visible creatures or objects.`,
-      `Use retro gaming terminology and emphasize the pixel art aesthetic with EGA-style 256 colors.`,
+      `CRITICAL STYLE REQUIREMENTS (MUST maintain throughout session):`,
+      `- Artist Style: ${this.sessionStyle.artist}`,
+      `- Technique: ${this.sessionStyle.technique}`,
+      `- Color Palette: ${this.sessionStyle.palette}`,
+      `- Era: ${this.sessionStyle.era}`,
+      `- Format: 320x240 resolution, 256 color palette`,
+      ``,
+      `Create a FULLSCREEN ATMOSPHERIC illustration prompt.`,
+      `This is NOT a game screenshot - it's a dramatic illustration like Dragon Magazine cover art.`,
+      `Show the scene from an evocative angle that captures the mood and drama.`,
+      `Think: classic D&D module cover art, TSR adventure book illustrations.`,
+      ``,
+      `The image should:`,
+      `- Capture the atmosphere and tension of the moment`,
+      `- Show dramatic composition and lighting`,
+      `- Use the ${this.sessionStyle.artist} style consistently`,
+      `- Feature ${this.sessionStyle.palette}`,
+      `- Be rendered as ${this.sessionStyle.technique}`,
       ``,
       `Return ONLY the image generation prompt, nothing else.`
     );
@@ -113,12 +179,21 @@ export class SceneGenerator {
     // Get tiles in front of player
     const tilesAhead = this.getTilesInView(viewState, world);
 
-    // Build scene description
+    // Build scene description with consistent style
     const parts: string[] = [
-      '160x100 pixel art',
-      '256-color EGA palette',
-      'retro RPG style',
-      'top-down dungeon view',
+      // Style consistency
+      `${this.sessionStyle.artist} style`,
+      this.sessionStyle.technique,
+      this.sessionStyle.palette,
+      this.sessionStyle.era,
+
+      // Technical specs
+      '320x240 Mode X VGA',
+      '256-color palette',
+
+      // Scene type
+      'dramatic fantasy illustration',
+      'Dragon Magazine cover art style',
     ];
 
     // Describe environment
@@ -132,10 +207,10 @@ export class SceneGenerator {
     // Lighting and atmosphere
     parts.push(this.describeLighting(lighting, timeOfDay));
 
-    // Style reference
-    parts.push('inspired by Pool of Radiance and SSI Gold Box games');
-    parts.push('classic D&D video game aesthetic');
-    parts.push('crisp pixel art');
+    // Style reinforcement
+    parts.push('atmospheric composition');
+    parts.push('detailed fantasy art');
+    parts.push('classic TSR D&D illustration');
 
     return parts.join(', ');
   }
@@ -332,9 +407,9 @@ export class SceneGenerator {
           provider: this.config.provider,
           prompt,
           negativePrompt,
-          width: 160,
-          height: 100,
-          steps: 25,
+          width: 320,
+          height: 240,
+          steps: 30,
           cfgScale: 7.5,
         }),
       });

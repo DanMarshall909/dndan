@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>D&D AN - AI Dungeon Master</title>
   <style>
+    @font-face {
+      font-family: 'VGA';
+      src: local('Perfect DOS VGA 437'), local('Web437');
+      font-display: swap;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -13,8 +19,8 @@
 
     body {
       background: #000;
-      font-family: 'Courier New', monospace;
-      color: #0f0;
+      font-family: 'VGA', 'Fixedsys', 'Courier New', monospace;
+      color: #d4af37;
       overflow: hidden;
       display: flex;
       justify-content: center;
@@ -25,16 +31,37 @@
     #game-container {
       position: relative;
       width: 960px;
-      height: 600px;
+      height: 720px;
       background: #000;
-      border: 2px solid #0a0;
+      border: 3px solid #8b7355;
+      box-shadow: 0 0 30px rgba(139, 115, 85, 0.5);
       image-rendering: pixelated;
       image-rendering: crisp-edges;
+      overflow: hidden;
     }
 
     canvas {
       image-rendering: pixelated;
       image-rendering: crisp-edges;
+    }
+
+    /* Custom scrollbar for webkit browsers */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #8b7355;
+      border-radius: 2px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a58968;
     }
 
     .loading {
@@ -44,6 +71,10 @@
       transform: translate(-50%, -50%);
       font-size: 24px;
       text-align: center;
+      color: #d4af37;
+      text-shadow: 2px 2px 4px #000;
+      text-transform: uppercase;
+      letter-spacing: 2px;
     }
   </style>
 </head>

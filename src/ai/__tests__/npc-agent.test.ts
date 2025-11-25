@@ -357,6 +357,7 @@ describe('NPCAgent', () => {
     });
 
     describe('loadState edge cases', () => {
+      // NEXT: Test loadState with state object that has no memory property. Should not throw and agent should remain functional.
       it.todo('loadState_handles_missing_memory_object');
       it.todo('loadState_handles_missing_lastUpdated');
       it.todo('loadState_handles_missing_relationships');

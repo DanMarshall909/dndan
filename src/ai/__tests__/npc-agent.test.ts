@@ -357,8 +357,24 @@ describe('NPCAgent', () => {
     });
 
     describe('loadState edge cases', () => {
-      // NEXT: Test loadState with state object that has no memory property. Should not throw and agent should remain functional.
-      it.todo('loadState_handles_missing_memory_object');
+      it('loadState_handles_missing_memory_object', async () => {
+        const provider = createSingleResponseProvider('Response');
+        const persona = generatePersona('Merchant', 'Lawful Good');
+        const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+        const stateWithoutMemory = { id: 'npc-1', name: 'Garrick' };
+
+        expect(() => agent.loadState(stateWithoutMemory)).not.toThrow();
+
+        const state = agent.saveState() as any;
+        expect(state.memory.interactions).toEqual([]);
+        expect(state.memory.facts).toEqual([]);
+        expect(state.memory.relationships).toEqual([]);
+
+        const response = await agent.processDialogue('Player', 'Hello', 'greeting');
+        expect(response).toBeDefined();
+        expect(typeof response).toBe('string');
+      });
       it.todo('loadState_handles_missing_lastUpdated');
       it.todo('loadState_handles_missing_relationships');
     });
@@ -526,7 +542,17 @@ describe('NPCAgent', () => {
   });
 
   describe('updateRelationship', () => {
-    it.todo('updateRelationship_defaults_to_Neutral_for_unknown_character');
+    it('updateRelationship_defaults_to_Neutral_for_unknown_character', () => {
+      const provider = createSingleResponseProvider('Response');
+      const persona = generatePersona('Merchant', 'Lawful Good');
+      const agent = new NPCAgent('npc-1', 'Garrick', persona, provider);
+
+      agent.updateRelationship('UnknownPlayer', 1);
+
+      const state = agent.saveState() as any;
+      const relationships = new Map(state.memory.relationships);
+      expect(relationships.get('UnknownPlayer')).toBe('Friendly');
+    });
     it.todo('updateRelationship_increases_relationship_level');
     it.todo('updateRelationship_decreases_relationship_level');
     it.todo('updateRelationship_clamps_at_Hostile');

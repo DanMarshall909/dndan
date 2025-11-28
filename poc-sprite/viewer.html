@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POC: Isometric Sprite Animation Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #0f0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+        }
+
+        .sprites-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .sprite-card {
+            background: #000;
+            border: 2px solid #0f0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .sprite-card h2 {
+            color: #0ff;
+            margin-bottom: 10px;
+            text-align: center;
+            text-transform: capitalize;
+        }
+
+        .sprite-canvas-wrapper {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 15px;
+            background: repeating-conic-gradient(#1a1a1a 0% 25%, #2a2a2a 0% 50%) 50% / 20px 20px;
+            border: 1px solid #333;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .sprite-canvas {
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .sprite-info {
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+        }
+
+        .sprite-info div {
+            margin: 3px 0;
+        }
+
+        .controls {
+            background: #000;
+            border: 2px solid #0f0;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .controls h3 {
+            color: #0ff;
+            margin-bottom: 15px;
+        }
+
+        .control-row {
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        button {
+            background: #000;
+            border: 2px solid #0f0;
+            color: #0f0;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        input[type="range"] {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        label {
+            color: #0ff;
+            min-width: 120px;
+        }
+
+        .value-display {
+            color: #ff0;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .status {
+            background: #000;
+            border: 2px solid #ff0;
+            padding: 15px;
+            border-radius: 5px;
+            color: #ff0;
+        }
+
+        .error {
+            border-color: #f00;
+            color: #f00;
+        }
+
+        .success {
+            border-color: #0f0;
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>POC: Isometric Sprite Animation Viewer</h1>
+
+        <div id="status" class="status">
+            Loading sprites...
+        </div>
+
+        <div class="controls">
+            <h3>Animation Controls</h3>
+
+            <div class="control-row">
+                <button id="playPauseBtn">Play</button>
+                <button id="stepBtn">Step Frame</button>
+                <button id="resetBtn">Reset</button>
+            </div>
+
+            <div class="control-row">
+                <label for="speedSlider">Animation Speed:</label>
+                <input type="range" id="speedSlider" min="50" max="500" value="150" step="10">
+                <span class="value-display" id="speedValue">150ms</span>
+            </div>
+
+            <div class="control-row">
+                <label for="scaleSlider">Display Scale:</label>
+                <input type="range" id="scaleSlider" min="100" max="400" value="200" step="50">
+                <span class="value-display" id="scaleValue">200%</span>
+            </div>
+        </div>
+
+        <div id="spritesGrid" class="sprites-grid">
+            <!-- Sprite cards will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        const ENTITIES = ['goblin', 'fighter', 'skeleton'];
+        let animationFrameId = null;
+        let isPlaying = false;
+        let currentFrame = 0;
+        let lastFrameTime = 0;
+        let frameDelay = 150; // milliseconds
+        let spriteData = {};
+
+        // Animation control
+        function startAnimation() {
+            if (!isPlaying) {
+                isPlaying = true;
+                document.getElementById('playPauseBtn').textContent = 'Pause';
+                lastFrameTime = performance.now();
+                animationFrameId = requestAnimationFrame(animate);
+            }
+        }
+
+        function pauseAnimation() {
+            if (isPlaying) {
+                isPlaying = false;
+                document.getElementById('playPauseBtn').textContent = 'Play';
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+            }
+        }
+
+        function togglePlayPause() {
+            if (isPlaying) {
+                pauseAnimation();
+            } else {
+                startAnimation();
+            }
+        }
+
+        function stepFrame() {
+            currentFrame = (currentFrame + 1) % 4;
+            drawAllSprites();
+        }
+
+        function resetAnimation() {
+            currentFrame = 0;
+            drawAllSprites();
+        }
+
+        function animate(timestamp) {
+            if (!isPlaying) return;
+
+            const elapsed = timestamp - lastFrameTime;
+
+            if (elapsed >= frameDelay) {
+                currentFrame = (currentFrame + 1) % 4;
+                drawAllSprites();
+                lastFrameTime = timestamp;
+            }
+
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function drawAllSprites() {
+            Object.keys(spriteData).forEach(entityName => {
+                drawSprite(entityName);
+            });
+        }
+
+        function drawSprite(entityName) {
+            const data = spriteData[entityName];
+            if (!data || !data.spriteSheet || !data.metadata) return;
+
+            const canvas = document.getElementById(`canvas-${entityName}`);
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const metadata = data.metadata.animations.walk.frames[currentFrame];
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw current frame from sprite sheet
+            ctx.drawImage(
+                data.spriteSheet,
+                metadata.x, metadata.y, metadata.w, metadata.h,
+                0, 0, canvas.width, canvas.height
+            );
+        }
+
+        async function loadSprite(entityName) {
+            try {
+                // Load sprite sheet
+                const spriteSheet = new Image();
+                spriteSheet.src = `output/${entityName}/spritesheet.png`;
+                await new Promise((resolve, reject) => {
+                    spriteSheet.onload = resolve;
+                    spriteSheet.onerror = reject;
+                });
+
+                // Load metadata
+                const metadataResponse = await fetch(`output/${entityName}/metadata.json`);
+                const metadata = await metadataResponse.json();
+
+                spriteData[entityName] = {
+                    spriteSheet,
+                    metadata
+                };
+
+                return true;
+            } catch (error) {
+                console.error(`Failed to load ${entityName}:`, error);
+                return false;
+            }
+        }
+
+        function createSpriteCard(entityName) {
+            const metadata = spriteData[entityName]?.metadata;
+            if (!metadata) return;
+
+            const card = document.createElement('div');
+            card.className = 'sprite-card';
+            card.innerHTML = `
+                <h2>${entityName}</h2>
+                <div class="sprite-canvas-wrapper">
+                    <canvas id="canvas-${entityName}"
+                            class="sprite-canvas"
+                            width="128"
+                            height="128"></canvas>
+                </div>
+                <div class="sprite-info">
+                    <div>Size: ${metadata.spriteSize.w}x${metadata.spriteSize.h}</div>
+                    <div>Frames: ${metadata.totalFrames}</div>
+                    <div>Type: ${metadata.entityType}</div>
+                </div>
+            `;
+
+            document.getElementById('spritesGrid').appendChild(card);
+        }
+
+        async function initialize() {
+            const statusEl = document.getElementById('status');
+
+            // Load all sprites
+            const loadPromises = ENTITIES.map(loadSprite);
+            const results = await Promise.all(loadPromises);
+
+            const successCount = results.filter(r => r).length;
+
+            if (successCount === 0) {
+                statusEl.textContent = '❌ No sprites found. Please run generate_sprites.py first.';
+                statusEl.classList.add('error');
+                return;
+            }
+
+            if (successCount < ENTITIES.length) {
+                statusEl.textContent = `⚠️ Loaded ${successCount}/${ENTITIES.length} sprites. Some may be missing.`;
+            } else {
+                statusEl.textContent = `✓ Successfully loaded all ${ENTITIES.length} sprite animations!`;
+                statusEl.classList.add('success');
+            }
+
+            // Create sprite cards
+            ENTITIES.forEach(entity => {
+                if (spriteData[entity]) {
+                    createSpriteCard(entity);
+                }
+            });
+
+            // Initial draw
+            drawAllSprites();
+
+            // Setup event listeners
+            document.getElementById('playPauseBtn').addEventListener('click', togglePlayPause);
+            document.getElementById('stepBtn').addEventListener('click', stepFrame);
+            document.getElementById('resetBtn').addEventListener('click', resetAnimation);
+
+            document.getElementById('speedSlider').addEventListener('input', (e) => {
+                frameDelay = parseInt(e.target.value);
+                document.getElementById('speedValue').textContent = `${frameDelay}ms`;
+            });
+
+            document.getElementById('scaleSlider').addEventListener('input', (e) => {
+                const scale = parseInt(e.target.value);
+                document.getElementById('scaleValue').textContent = `${scale}%`;
+
+                document.querySelectorAll('.sprite-canvas-wrapper').forEach(wrapper => {
+                    wrapper.style.width = `${scale}px`;
+                    wrapper.style.height = `${scale}px`;
+                });
+            });
+
+            // Auto-start animation
+            startAnimation();
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+</html>

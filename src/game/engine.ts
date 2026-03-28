@@ -7,6 +7,7 @@ import { DungeonGenerator } from '../map/generator';
 import { Character, Monster } from './types';
 import { CharacterBuilder } from './character';
 import { CombatEngine } from './combat';
+import { TurnManager, PlayerAction } from './turn-manager';
 import { AIDungeonMaster } from '../ai/dm';
 import { NPCManager } from '../ai/npc-manager';
 import { SceneCache } from '../ai/cache';
@@ -46,6 +47,8 @@ export class GameEngine {
   private currentDialogueNPC: string | null;
   private currentNarrative: string | null;
   private recentEvents: string[];
+  private turnManager: TurnManager | null;
+  private currentCombatMonsters: Monster[];
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -60,6 +63,8 @@ export class GameEngine {
     this.currentDialogueNPC = null;
     this.currentNarrative = null;
     this.recentEvents = [];
+    this.turnManager = null;
+    this.currentCombatMonsters = [];
 
     // Initialize AI systems
     this.dm = new AIDungeonMaster(); // Uses backend proxy
@@ -164,6 +169,13 @@ export class GameEngine {
    * Handle player actions
    */
   private async handleAction(action: ActionType): Promise<void> {
+    // Handle combat actions
+    if (this.state === GameState.Combat) {
+      await this.handleCombatAction(action);
+      return;
+    }
+
+    // Handle exploration actions
     if (this.state !== GameState.Exploring) return;
 
     const direction = InputController.actionToDirection(action);
@@ -317,64 +329,153 @@ export class GameEngine {
    */
   private async startCombat(monsters: Monster[]): Promise<void> {
     this.state = GameState.Combat;
+    this.currentCombatMonsters = monsters;
     this.ui.addMessage('--- COMBAT BEGINS ---', '#ff0');
 
-    // Roll initiative
-    const initiative = CombatEngine.rollInitiative(this.party, monsters);
+    // Initialize turn manager
+    this.turnManager = new TurnManager(this.party, monsters);
+
+    // Show initiative order
     this.ui.addMessage(
-      'Initiative: ' + initiative.map((i) => `${i.name}(${i.initiative})`).join(', ')
+      'Initiative: ' + this.turnManager.getInitiativeString(),
+      '#0ff'
     );
 
-    // Combat loop (simplified - just one round for demo)
-    for (const combatant of initiative) {
-      if (combatant.isPlayer) {
-        // Player turn
-        const character = this.party.find((c) => c.id === combatant.id);
-        const target = monsters[0];
+    // Start first turn
+    this.processCombatTurn();
+  }
 
-        if (character && target && target.hitPoints > 0) {
-          const result = CombatEngine.characterAttack(character, target, character.equipment.weapon);
-          const desc = CombatEngine.describeAttackResult(result, character.name, target.name);
-          this.ui.addMessage(desc, result.hit ? '#0f0' : '#888');
-
-          if (result.hit) {
-            const dead = CombatEngine.damageMonster(target, result.damage);
-            if (dead) {
-              this.ui.addMessage(`${target.name} is slain!`, '#ff0');
-              character.experience += target.xpValue;
-              this.world.removeEntity(target.id);
-            }
-          }
-        }
-      } else {
-        // Monster turn
-        const monster = monsters.find((m) => m.id === combatant.id);
-        const target = this.party[0];
-
-        if (monster && monster.hitPoints > 0 && target) {
-          const result = CombatEngine.monsterAttack(monster, target);
-          const desc = CombatEngine.describeAttackResult(result, monster.name, target.name);
-          this.ui.addMessage(desc, result.hit ? '#f00' : '#888');
-
-          if (result.hit) {
-            const dead = CombatEngine.damageCharacter(target, result.damage);
-            this.ui.updateStats(target);
-
-            if (dead) {
-              this.ui.addMessage(`${target.name} has fallen!`, '#f00');
-              this.state = GameState.GameOver;
-              return;
-            }
-          }
-        }
-      }
+  /**
+   * Process current combat turn
+   */
+  private async processCombatTurn(): Promise<void> {
+    if (!this.turnManager || !this.turnManager.isActive()) {
+      return;
     }
 
-    // Check if all monsters defeated
-    const aliveMonsters = monsters.filter((m) => m.hitPoints > 0);
-    if (aliveMonsters.length === 0) {
+    const combatState = this.turnManager.getState();
+    const currentCombatant = this.turnManager.getCurrentCombatant();
+
+    if (!currentCombatant) {
+      return;
+    }
+
+    // Show round info if new round
+    if (combatState.turnIndex === 0) {
+      this.ui.addMessage(`\n=== ROUND ${combatState.round} ===`, '#ff0');
+    }
+
+    if (currentCombatant.isPlayer) {
+      // Player turn - show options
+      this.ui.addMessage(`\n${currentCombatant.name}'s turn:`, '#0ff');
+      this.ui.addMessage(
+        'Actions: [W/Space] Attack | [A] Defend | [D] Flee | [S/I] Item | [M] Spell',
+        '#fff'
+      );
+
+      // Show available targets
+      const aliveMonsters = this.turnManager.getAliveMonsters();
+      if (aliveMonsters.length > 0) {
+        const targets = aliveMonsters
+          .map((m, i) => `${i + 1}. ${m.name} (HP: ${m.hitPoints}/${Dice.rollFormula(m.hitDice)})`)
+          .join(', ');
+        this.ui.addMessage(`Enemies: ${targets}`, '#f88');
+      }
+    } else {
+      // Enemy turn - process automatically
+      this.ui.addMessage(`\n${currentCombatant.name}'s turn:`, '#f88');
+
+      // Small delay for readability
+      setTimeout(() => {
+        const result = this.turnManager!.processEnemyTurn();
+        this.ui.addMessage(result.message, result.color);
+
+        if (this.currentCharacter) {
+          this.ui.updateStats(this.currentCharacter);
+        }
+
+        if (result.combatEnded) {
+          this.endCombat(result.victory || false);
+        } else {
+          // Continue to next turn
+          this.processCombatTurn();
+        }
+      }, 500);
+    }
+  }
+
+  /**
+   * Handle combat action input
+   */
+  private async handleCombatAction(action: ActionType): Promise<void> {
+    if (!this.turnManager || !this.turnManager.isActive()) {
+      return;
+    }
+
+    const currentCombatant = this.turnManager.getCurrentCombatant();
+    if (!currentCombatant || !currentCombatant.isPlayer) {
+      return; // Not player's turn
+    }
+
+    let playerAction: PlayerAction | null = null;
+
+    // Map keyboard input to combat actions
+    // W/Up/Space = Attack, A/Left = Defend, S/Down = Item, D/Right = Flee, M = Spell
+    switch (action) {
+      case 'MoveNorth': // W or Up - Attack
+      case 'Interact': // Space - Attack
+        playerAction = 'attack';
+        break;
+      case 'MoveWest': // A or Left - Defend
+        playerAction = 'defend';
+        break;
+      case 'MoveSouth': // S or Down - Item
+      case 'Inventory': // I - Item
+        playerAction = 'item';
+        break;
+      case 'MoveEast': // D or Right - Flee
+        playerAction = 'flee';
+        break;
+      case 'CastSpell': // M - Spell
+        playerAction = 'spell';
+        break;
+    }
+
+    if (playerAction) {
+      const result = this.turnManager.processPlayerAction(playerAction);
+      this.ui.addMessage(result.message, result.color);
+
+      if (this.currentCharacter) {
+        this.ui.updateStats(this.currentCharacter);
+      }
+
+      if (result.combatEnded) {
+        this.endCombat(result.victory || false);
+      } else {
+        // Continue to next turn
+        this.processCombatTurn();
+      }
+    }
+  }
+
+  /**
+   * End combat
+   */
+  private endCombat(victory: boolean): void {
+    if (this.turnManager) {
+      this.turnManager.endCombat();
+      this.turnManager = null;
+    }
+
+    if (victory) {
       this.ui.addMessage('--- VICTORY! ---', '#ff0');
-      this.state = GameState.Exploring;
+
+      // Remove dead monsters from world
+      for (const monster of this.currentCombatMonsters) {
+        if (monster.hitPoints <= 0) {
+          this.world.removeEntity(monster.id);
+        }
+      }
 
       // Check for level up
       if (this.currentCharacter && CharacterBuilder.canLevelUp(this.currentCharacter)) {
@@ -382,7 +483,14 @@ export class GameEngine {
         this.ui.addMessage(`${this.currentCharacter.name} gains a level!`, '#ff0');
         this.ui.updateStats(this.currentCharacter);
       }
+
+      this.state = GameState.Exploring;
+    } else {
+      this.ui.addMessage('--- DEFEAT! ---', '#f00');
+      this.state = GameState.GameOver;
     }
+
+    this.currentCombatMonsters = [];
   }
 
   /**

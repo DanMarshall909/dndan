@@ -1,8 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "mutate": [
-    "src/ai/providers/provider-factory.ts",
-    "src/ai/npc-agent.ts"
+    "src/ai/npc-manager.ts"
   ],
   "testRunner": "vitest",
   "reporters": ["clear-text", "progress"],

@@ -1,10 +1,48 @@
 import { describe, it, expect } from 'vitest';
+import { NPCManager } from '../npc-manager';
+import { createSingleResponseProvider } from '../providers/test-provider';
 
 describe('NPCManager', () => {
   describe('initialization', () => {
-    it.todo('creates manager with provider factory');
-    it.todo('initializes empty NPC registry');
-    it.todo('accepts provider configuration');
+    it('creates manager with provider factory', () => {
+      const provider = createSingleResponseProvider('Hello');
+
+      const manager = new NPCManager(provider);
+
+      expect(manager).toBeDefined();
+    });
+
+    it('initializes empty NPC registry', () => {
+      const provider = createSingleResponseProvider('Hello');
+
+      const manager = new NPCManager(provider);
+
+      expect(manager.getAllNPCs()).toHaveLength(0);
+    });
+
+    it('accepts provider configuration', async () => {
+      const response = 'Wares for sale!';
+      const provider = createSingleResponseProvider(response);
+      const manager = new NPCManager(provider);
+      const npc = manager.createNPC('npc-1', 'Garrick', 'A merchant', 'Merchant', 'Lawful Good', { x: 0, y: 0 });
+
+      const result = await manager.handleDialogue('npc-1', 'Player', 'Hello', 'greeting');
+
+      expect(result).toBe(response);
+      expect(npc.active).toBe(true);
+    });
+
+    it('returns unavailable message when NPC does not exist', async () => {
+      const provider = createSingleResponseProvider('Hello');
+      const manager = new NPCManager(provider);
+
+      const result = await manager.handleDialogue('ghost-npc', 'Player', 'Hello', 'greeting');
+
+      expect(result).toBe('ghost-npc is not available.');
+    });
+
+    it.todo('two managers maintain isolated NPC registries');
+    it.todo('accepts custom update interval in constructor');
   });
 
   describe('NPC creation', () => {

@@ -395,7 +395,11 @@ export class GameEngine {
         }
 
         if (result.combatEnded) {
-          this.endCombat(result.victory || false);
+          if (result.fled) {
+            this.endCombatFled();
+          } else {
+            this.endCombat(result.victory || false);
+          }
         } else {
           // Continue to next turn
           this.processCombatTurn();
@@ -450,12 +454,30 @@ export class GameEngine {
       }
 
       if (result.combatEnded) {
-        this.endCombat(result.victory || false);
+        if (result.fled) {
+          this.endCombatFled();
+        } else {
+          this.endCombat(result.victory || false);
+        }
       } else {
         // Continue to next turn
         this.processCombatTurn();
       }
     }
+  }
+
+  /**
+   * End combat when player flees
+   */
+  private endCombatFled(): void {
+    if (this.turnManager) {
+      this.turnManager.endCombat();
+      this.turnManager = null;
+    }
+
+    this.ui.addMessage('--- ESCAPED! ---', '#ff0');
+    this.state = GameState.Exploring;
+    this.currentCombatMonsters = [];
   }
 
   /**

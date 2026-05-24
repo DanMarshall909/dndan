@@ -27,6 +27,7 @@ export interface TurnResult {
   color: string;
   combatEnded: boolean;
   victory?: boolean;
+  fled?: boolean;
 }
 
 export class TurnManager {
@@ -142,7 +143,8 @@ export class TurnManager {
     }
 
     // Advance turn if action completed and combat didn't end
-    if (!result.combatEnded && action !== 'flee') {
+    // Failed flee attempts still consume the turn
+    if (!result.combatEnded) {
       this.advanceTurn();
     }
 
@@ -300,11 +302,11 @@ export class TurnManager {
         message: `${character.name} successfully flees from combat!`,
         color: '#ff0',
         combatEnded: true,
-        victory: false,
+        fled: true,
       };
     } else {
       return {
-        message: `${character.name} fails to escape! (Enemy gets free attack)`,
+        message: `${character.name} fails to escape!`,
         color: '#f80',
         combatEnded: false,
       };
@@ -315,15 +317,6 @@ export class TurnManager {
    * Advance to next turn
    */
   private advanceTurn(): void {
-    // Remove defend bonuses from previous turn
-    for (const charId of this.defendingCharacters) {
-      const character = this.playerParty.find((c) => c.id === charId);
-      if (character) {
-        character.combat.armorClass += 4; // Remove AC bonus
-      }
-    }
-    this.defendingCharacters.clear();
-
     // Move to next combatant
     this.state.turnIndex++;
 
@@ -344,6 +337,15 @@ export class TurnManager {
    * Start a new round
    */
   private startNewRound(): void {
+    // Remove defend bonuses at the start of a new round
+    for (const charId of this.defendingCharacters) {
+      const character = this.playerParty.find((c) => c.id === charId);
+      if (character) {
+        character.combat.armorClass += 4; // Remove AC bonus
+      }
+    }
+    this.defendingCharacters.clear();
+
     this.state.round++;
     this.state.turnIndex = 0;
     this.state.currentCombatant = this.state.initiative[0];
